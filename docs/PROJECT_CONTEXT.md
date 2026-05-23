@@ -123,7 +123,7 @@ src/
 7. Key Workflows to Implement
 Registration Saga (IAM + Athlete): When a new athlete registers, the IAM module creates the Account and hashes the password. The Athletes module then takes the newly created account_id and creates the physical CompetitorProfile.
 
-Role-Based Routing: POST /auth/login returns a JWT containing the Account ID and Role. The frontend routes users based on this role, and the backend protects endpoints using @Roles('JUDGE', 'ADMIN').
+Role-Based Routing: POST /auth/login returns a JWT containing the Sub and Email. The frontend routes users based on this role, and the backend protects endpoints using @Roles('JUDGE', 'ADMIN').
 
 Dynamic Category Filtering: When signing up for an event, the system must only present categories that match the athlete's registered gender, age, height, and weight.
 

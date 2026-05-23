@@ -1,20 +1,21 @@
-version: '3.8'
-
 services:
   db:
     image: postgres:15-alpine
     container_name: fdff_postgres
     restart: always
+    env_file:
+      - .env
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres_password
-      POSTGRES_DB: fdff
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
     ports:
-      - '5432:5432'
+      - '${DB_PORT:-5432}:5432'
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./src/shared/database/seeds:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U postgres -d fdff']
+      test: ['CMD-SHELL', 'pg_isready -U ${DB_USER} -d ${DB_NAME}']
       interval: 5s
       timeout: 5s
       retries: 5
@@ -28,17 +29,13 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    env_file:
+      - .env
     environment:
-      NODE_ENV: development
-      PORT: 3000
+      # Inside Docker, the database host is the compose service name, not localhost.
       DB_HOST: db
-      DB_PORT: 5432
-      DB_USER: postgres
-      DB_PASSWORD: postgres_password
-      DB_NAME: fdff
-      JWT_SECRET: ${JWT_SECRET:-dev-only-change-me}
     ports:
-      - '3000:3000'
+      - '${PORT:-3000}:${PORT:-3000}'
 
 volumes:
   postgres_data:
