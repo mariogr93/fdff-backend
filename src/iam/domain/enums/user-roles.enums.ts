@@ -1,5 +1,5 @@
 export enum UserRoles {
-  ADMIN = 'admin',
-  JUDGE = 'judge',
-  ATHLETE = 'athlete',
+  ADMIN = 'ADMIN',
+  JUDGE = 'JUDGE',
+  ATHLETE = 'ATHLETE',
 }
