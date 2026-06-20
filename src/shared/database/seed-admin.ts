@@ -21,25 +21,27 @@ async function seedAdmin(): Promise<void> {
 
   try {
     const config = app.get(ConfigService);
-    const adminEmail = config.get<string>('ADMIN_EMAIL');
-    const adminPassword = config.get<string>('ADMIN_PASSWORD');
-
-    if (!adminEmail?.trim() || !adminPassword?.trim()) {
-      console.error(
-        'Missing required environment variables: ADMIN_EMAIL and ADMIN_PASSWORD must be set in .env',
-      );
-      process.exit(1);
-    }
+    const adminEmail = config.get<string>('ADMIN_EMAIL')?.trim();
+    const adminPassword = config.get<string>('ADMIN_PASSWORD')?.trim();
 
     const accountRepo = app.get<IAccountRepository>(I_ACCOUNT_REPOSITORY);
     const passwordHasher = app.get<IPasswordHasherPort>(I_PASSWORD_HASHER);
 
-    const existing = await accountRepo.findByEmail(adminEmail);
-    if (existing) {
-      console.log(
-        `Admin account "${adminEmail}" already exists. Skipping seed (no changes made).`,
+    if (adminEmail) {
+      const existing = await accountRepo.findByEmail(adminEmail);
+      if (existing) {
+        console.log(
+          `Admin account "${adminEmail}" already exists. Skipping seed (no changes made).`,
+        );
+        return;
+      }
+    }
+
+    if (!adminEmail || !adminPassword) {
+      console.error(
+        'Missing required environment variables: ADMIN_EMAIL and ADMIN_PASSWORD must be set in .env',
       );
-      return;
+      process.exit(1);
     }
 
     const passwordHash = await passwordHasher.hash(adminPassword);
