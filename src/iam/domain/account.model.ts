@@ -10,5 +10,6 @@ export class Account {
     public readonly status: AccountStatus,
     public readonly failedLoginAttempts: number = 0,
     public readonly lockedUntil: Date | null = null,
+    public readonly refreshTokenHash: string | null = null,
   ) {}
 }

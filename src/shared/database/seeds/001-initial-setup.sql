@@ -23,6 +23,7 @@ CREATE TABLE IF NOT EXISTS accounts (
   status account_status NOT NULL DEFAULT 'PENDING',
   failed_login_attempts INT NOT NULL DEFAULT 0,
   locked_until TIMESTAMPTZ,
+  refresh_token_hash VARCHAR(64),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );

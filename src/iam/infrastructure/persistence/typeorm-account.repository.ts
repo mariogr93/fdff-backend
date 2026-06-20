@@ -22,6 +22,13 @@ export class TypeOrmAccountRepository implements IAccountRepository {
     return row ? this.toDomain(row) : null;
   }
 
+  async findByRefreshTokenHash(hash: string): Promise<Account | null> {
+    const row = await this.repository.findOne({
+      where: { refreshTokenHash: hash },
+    });
+    return row ? this.toDomain(row) : null;
+  }
+
   async save(account: Account): Promise<void> {
     await this.repository.save(this.toOrm(account));
   }
@@ -39,6 +46,7 @@ export class TypeOrmAccountRepository implements IAccountRepository {
       row.status,
       row.failedLoginAttempts,
       row.lockedUntil,
+      row.refreshTokenHash,
     );
   }
 
@@ -51,6 +59,7 @@ export class TypeOrmAccountRepository implements IAccountRepository {
     row.status = account.status;
     row.failedLoginAttempts = account.failedLoginAttempts;
     row.lockedUntil = account.lockedUntil;
+    row.refreshTokenHash = account.refreshTokenHash;
     return row;
   }
 }
