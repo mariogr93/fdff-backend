@@ -1,4 +1,8 @@
 
+psql -U db_user -d fdff_db
+
+
+
 ## Description
 
 Backend API for the FDFF WebApp (Federación Dominicana de Fisicoculturismo y Fitness).

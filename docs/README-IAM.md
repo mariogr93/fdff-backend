@@ -93,10 +93,10 @@ src/shared/
 
 | Method | Path | Throttle (per IP) | Guards |
 |--------|------|-------------------|--------|
-| `POST` | `/auth/register` | x / hour | `RegisterRoleGuard` |
-| `POST` | `/auth/login` | x / minute | — |
+| `POST` | `/auth/register` | 10 / hour | `RegisterRoleGuard` |
+| `POST` | `/auth/login` | 5 / minute | — |
 
-Global throttle (app-level): **X req/min** via `ThrottlerGuard`.
+Global throttle (app-level): **100 req/min** via `ThrottlerGuard` (`app.module.ts`).
 
 ### Use cases
 
@@ -114,6 +114,7 @@ Global throttle (app-level): **X req/min** via `ThrottlerGuard`.
 | `status` | `PENDING` \| `APPROVED` \| `REJECTED` |
 | `failedLoginAttempts` | Soft lockout counter |
 | `lockedUntil` | Nullable; 15-minute lock after 5 failed logins |
+| `refreshTokenHash` | SHA-256 hash of opaque refresh token (nullable until first login) |
 
 ### Ports & adapters
 
@@ -127,7 +128,7 @@ Repository methods: `findById`, `findByEmail`, `save`, `update`.
 
 ### Security infrastructure
 
-- **`JwtTokenService`** — signs/verifies JWT; payload is **identity-only** (`sub`, `email`).
+- **`JwtTokenService`** — signs/verifies **RS256** JWT; payload is **identity-only** (`sub`, `email`). Keys via `JWT_PRIVATE_KEY_PATH` / `JWT_PUBLIC_KEY_PATH` (or inline PEM env vars).
 - **`JwtStrategy`** — loads `Account` from DB on each validated request; enforces `APPROVED` status.
 - **`BcryptPasswordHasher`** — `SALT_ROUNDS` from env (default 10).
 - **`RegisterRoleGuard`** — DB-backed check: only `APPROVED` `ADMIN` may create `ADMIN`/`JUDGE` accounts.
@@ -181,12 +182,14 @@ Client
   → LoginAccountUseCase
        · findByEmail
        · lockedUntil in future? → AccountLockedException
-       · bcrypt compare 
+       · bcrypt compare (timing-safe dummy hash if email unknown)
        · invalid? increment failedLoginAttempts; lock at 5; update; InvalidCredentialsException
        · valid? reset attempts; update
        · status !== APPROVED? → AccountNotApprovedException
-       · tokenService.sign({ id, email })
-  → JSON { accessToken, accountId, role }
+       · generate opaque refresh token → SHA-256 hash → persist refresh_token_hash
+       · tokenService.sign RS256 access token ({ sub, email }, 15m)
+  → Set-Cookie: refresh_token (HttpOnly, SameSite=strict, Secure in production)
+  → JSON { accessToken, accountId, role }  (refresh token NOT in body)
 ```
 
 ### JWT validation (when `JwtAuthGuard` is applied)
@@ -231,18 +234,27 @@ Authorization: Bearer <token>
 ### Environment variables (IAM-relevant)
 
 ```env
-JWT_SECRET=              # Required; startup fails if missing (getOrThrow)
-JWT_EXPIRES_IN=15m        # Access token TTL
-SALT_ROUNDS=10            # bcrypt cost (4–31)
-ADMIN_EMAIL=              # npm run db:seed
-ADMIN_PASSWORD=           # Quote if value contains $
+JWT_PRIVATE_KEY_PATH=./keys/jwt-private.pem   # RS256 signing key (or JWT_PRIVATE_KEY PEM string)
+JWT_PUBLIC_KEY_PATH=./keys/jwt-public.pem     # RS256 verification key (or JWT_PUBLIC_KEY PEM string)
+JWT_EXPIRES_IN=15m                            # Access token TTL
+REFRESH_TOKEN_EXPIRES_DAYS=7                  # HttpOnly cookie max-age
+SALT_ROUNDS=12                                # bcrypt cost (4–31); default 12 if unset
+ADMIN_EMAIL=                                  # npm run db:seed
+ADMIN_PASSWORD=                               # Quote if value contains $
 ```
 
 ### Validation (DTOs)
 
-- Email: `@IsEmail()`, `@MaxLength(100)`
-- Password: `@MinLength(8)`, `@MaxLength(72)` (bcrypt byte limit)
+Register (`RegisterAccountDto`) — mirrors frontend Zod signup rules:
+
+- Email: `@IsEmail()`, `@MaxLength(100)`, trimmed and lowercased via `@Transform`
+- Password: `@MinLength(8)`, `@MaxLength(20)`, `@IsPasswordStrong()` (uppercase, lowercase, digit, special character)
 - Register `role`: optional, defaults to `ATHLETE` via `@Transform`
+
+Login (`LoginDto`) — length bounds only (no entropy on existing credentials):
+
+- Email: `@IsEmail()`, `@MaxLength(100)`
+- Password: `@MinLength(8)`, `@MaxLength(20)`
 
 ### Database
 
@@ -259,7 +271,7 @@ ADMIN_PASSWORD=           # Quote if value contains $
 | Item | Notes |
 |------|--------|
 | **Global or route JWT protection** | `JwtAuthGuard` unused; no `@Roles()` guard yet |
-| **Refresh tokens / logout** | Single access JWT only |
+| **Refresh endpoint / rotation** | Refresh token issued on login (HttpOnly cookie); `/auth/refresh` not implemented yet |
 | **Email verification** | Accounts stay `PENDING` until manual DB/admin workflow |
 | **Password reset** | No flow |
 | **Account management API** | Approve/reject/suspend users (admin CRUD) |
