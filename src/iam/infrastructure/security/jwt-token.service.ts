@@ -6,19 +6,22 @@ import {
   ITokenServicePort,
   TokenIdentity,
 } from '../../application/ports/token.service.port';
-import { Account } from '../../domain/account.model';
 import { JwtPayload } from './jwt-payload.interface';
+import { loadJwtKeyPair } from './jwt-key.util';
 
 @Injectable()
 export class JwtTokenService implements ITokenServicePort {
-  private readonly jwtSecret: string;
+  private readonly privateKey: string;
+  private readonly publicKey: string;
   private readonly expiresIn: JwtSignOptions['expiresIn'];
 
   constructor(
     private readonly jwtService: JwtService,
     config: ConfigService,
   ) {
-    this.jwtSecret = config.getOrThrow<string>('JWT_SECRET');
+    const keys = loadJwtKeyPair(config);
+    this.privateKey = keys.privateKey;
+    this.publicKey = keys.publicKey;
     this.expiresIn = config.get<string>(
       'JWT_EXPIRES_IN',
       '15m',
@@ -32,7 +35,8 @@ export class JwtTokenService implements ITokenServicePort {
     };
 
     const accessToken = await this.jwtService.signAsync(payload, {
-      secret: this.jwtSecret,
+      privateKey: this.privateKey,
+      algorithm: 'RS256',
       expiresIn: this.expiresIn,
     });
 
@@ -42,7 +46,8 @@ export class JwtTokenService implements ITokenServicePort {
   async verify(token: string): Promise<TokenIdentity> {
     try {
       const payload = await this.jwtService.verifyAsync<JwtPayload>(token, {
-        secret: this.jwtSecret,
+        publicKey: this.publicKey,
+        algorithms: ['RS256'],
       });
 
       return {
