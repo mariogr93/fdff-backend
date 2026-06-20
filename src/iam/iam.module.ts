@@ -8,10 +8,12 @@ import { I_ACCOUNT_REPOSITORY } from './application/ports/account.repository.int
 import { I_PASSWORD_HASHER } from './application/ports/password-hasher.port';
 import { I_TOKEN_SERVICE } from './application/ports/token.service.port';
 import { LoginAccountUseCase } from './application/use-cases/login-account.use-case';
+import { RefreshAccountUseCase } from './application/use-cases/refresh-account.use-case';
 import { RegisterAccountUseCase } from './application/use-cases/register-account.use-case';
 import { AccountOrmEntity } from './infrastructure/persistence/account.orm-entity';
 import { TypeOrmAccountRepository } from './infrastructure/persistence/typeorm-account.repository';
 import { BcryptPasswordHasher } from './infrastructure/security/bcrypt-password-hasher';
+import { loadJwtKeyPair } from './infrastructure/security/jwt-key.util';
 import { JwtTokenService } from './infrastructure/security/jwt-token.service';
 import { JwtStrategy } from './infrastructure/security/jwt.strategy';
 import { AuthController } from './presentation/auth.controller';
@@ -23,15 +25,21 @@ import { AuthController } from './presentation/auth.controller';
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: (config: ConfigService) => ({
-        secret: config.getOrThrow<string>('JWT_SECRET'),
-        signOptions: {
-          expiresIn: config.get<string>(
-            'JWT_EXPIRES_IN',
-            '15m',
-          ) as JwtSignOptions['expiresIn'],
-        },
-      }),
+      useFactory: (config: ConfigService) => {
+        const { privateKey, publicKey } = loadJwtKeyPair(config);
+
+        return {
+          privateKey,
+          publicKey,
+          signOptions: {
+            algorithm: 'RS256',
+            expiresIn: config.get<string>(
+              'JWT_EXPIRES_IN',
+              '15m',
+            ) as JwtSignOptions['expiresIn'],
+          },
+        };
+      },
     }),
   ],
   controllers: [AuthController],
@@ -40,6 +48,7 @@ import { AuthController } from './presentation/auth.controller';
     RegisterRoleGuard,
     RegisterAccountUseCase,
     LoginAccountUseCase,
+    RefreshAccountUseCase,
     {
       provide: I_ACCOUNT_REPOSITORY,
       useClass: TypeOrmAccountRepository,
