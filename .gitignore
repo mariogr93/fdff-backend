@@ -15,6 +15,9 @@ lerna-debug.log*
 # OS
 .DS_Store
 
+# JWT key material (generate locally; see .env.example)
+/keys/*.pem
+
 # Tests
 /coverage
 /.nyc_output
