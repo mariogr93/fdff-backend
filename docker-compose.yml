@@ -34,8 +34,14 @@ services:
     environment:
       # Inside Docker, the database host is the compose service name, not localhost.
       DB_HOST: db
+      # Postgres always listens on 5432 inside the container; DB_PORT in .env is the host-mapped port.
+      DB_PORT: 5432
+      # Browser runs on the host; allow the Vite dev server origin.
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
     ports:
       - '${PORT:-3000}:${PORT:-3000}'
+    volumes:
+      - ./keys:/app/keys:ro
 
 volumes:
   postgres_data:
