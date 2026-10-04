@@ -19,16 +19,19 @@ import { RegisterAccountUseCase } from '../application/use-cases/register-accoun
 import { UserRoles } from '../domain/enums/user-roles.enums';
 import {
   buildRefreshTokenCookieOptions,
+  buildClearRefreshTokenCookieOptions,
   REFRESH_TOKEN_COOKIE,
 } from '../infrastructure/security/auth-cookie.util';
 import { LoginDto } from './dtos/login.dto';
 import { RegisterAccountDto } from './dtos/register-account.dto';
+import { LogoutAccountUseCase } from '../application/use-cases/logout-account.use-case';
 
 @Controller('auth')
 export class AuthController {
   constructor(
     private readonly registerAccount: RegisterAccountUseCase,
     private readonly loginAccount: LoginAccountUseCase,
+    private readonly logoutAccount: LogoutAccountUseCase,
     private readonly refreshAccount: RefreshAccountUseCase,
     private readonly config: ConfigService,
   ) {}
@@ -79,6 +82,24 @@ export class AuthController {
       accountId: result.accountId,
       role: result.role,
     };
+  }
+
+
+  @Post('logout')
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  @HttpCode(HttpStatus.OK)
+  async logout(
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const plainRefreshToken = req.cookies?.[REFRESH_TOKEN_COOKIE];
+
+    await this.logoutAccount.execute(plainRefreshToken);
+
+    const isProduction = this.config.get<string>('NODE_ENV') === 'production';
+    res.clearCookie(REFRESH_TOKEN_COOKIE, buildClearRefreshTokenCookieOptions(isProduction));
+
+    return;
   }
 
   @Post('refresh')

@@ -17,6 +17,7 @@ import { loadJwtKeyPair } from './infrastructure/security/jwt-key.util';
 import { JwtTokenService } from './infrastructure/security/jwt-token.service';
 import { JwtStrategy } from './infrastructure/security/jwt.strategy';
 import { AuthController } from './presentation/auth.controller';
+import { LogoutAccountUseCase } from './application/use-cases/logout-account.use-case';
 
 @Module({
   imports: [
@@ -48,6 +49,7 @@ import { AuthController } from './presentation/auth.controller';
     RegisterRoleGuard,
     RegisterAccountUseCase,
     LoginAccountUseCase,
+    LogoutAccountUseCase,
     RefreshAccountUseCase,
     {
       provide: I_ACCOUNT_REPOSITORY,
