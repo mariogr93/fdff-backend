@@ -7,6 +7,7 @@ import { RegisterRoleGuard } from '../shared/guards/register-role.guard';
 import { I_ACCOUNT_REPOSITORY } from './application/ports/account.repository.interface';
 import { I_PASSWORD_HASHER } from './application/ports/password-hasher.port';
 import { I_TOKEN_SERVICE } from './application/ports/token.service.port';
+import { GetAccountsUseCase } from './application/use-cases/get-accounts.use-case';
 import { LoginAccountUseCase } from './application/use-cases/login-account.use-case';
 import { RefreshAccountUseCase } from './application/use-cases/refresh-account.use-case';
 import { RegisterAccountUseCase } from './application/use-cases/register-account.use-case';
@@ -17,6 +18,9 @@ import { loadJwtKeyPair } from './infrastructure/security/jwt-key.util';
 import { JwtTokenService } from './infrastructure/security/jwt-token.service';
 import { JwtStrategy } from './infrastructure/security/jwt.strategy';
 import { AuthController } from './presentation/auth.controller';
+import { AccountController } from './presentation/account.controller';
+import { ActivateAccountUseCase } from './application/use-cases/activate-account.use-case';
+import { RolesGuard } from 'src/shared/guards/roles.guard';
 import { LogoutAccountUseCase } from './application/use-cases/logout-account.use-case';
 
 @Module({
@@ -43,14 +47,17 @@ import { LogoutAccountUseCase } from './application/use-cases/logout-account.use
       },
     }),
   ],
-  controllers: [AuthController],
+  controllers: [AuthController, AccountController],
   providers: [
     JwtStrategy,
     RegisterRoleGuard,
+    RolesGuard,
     RegisterAccountUseCase,
     LoginAccountUseCase,
     LogoutAccountUseCase,
     RefreshAccountUseCase,
+    GetAccountsUseCase,
+    ActivateAccountUseCase,
     {
       provide: I_ACCOUNT_REPOSITORY,
       useClass: TypeOrmAccountRepository,

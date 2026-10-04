@@ -1,9 +1,15 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { FindOptionsWhere, ILike, Repository } from 'typeorm';
 import { IAccountRepository } from '../../application/ports/account.repository.interface';
+import {
+  AccountsQuery,
+  AccountsSortOrder,
+} from '../../application/ports/accounts-query';
 import { Account } from '../../domain/account.model';
 import { AccountOrmEntity } from './account.orm-entity';
+import { AccountStatus } from '../../domain/enums/account-status.enum';
+import { DomainException } from '../../domain/exceptions/domain.exception';
 
 @Injectable()
 export class TypeOrmAccountRepository implements IAccountRepository {
@@ -35,6 +41,43 @@ export class TypeOrmAccountRepository implements IAccountRepository {
 
   async update(account: Account): Promise<void> {
     await this.repository.save(this.toOrm(account));
+  }
+
+  async findMany(query: AccountsQuery): Promise<Account[]> {
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 10;
+
+    const where: FindOptionsWhere<AccountOrmEntity> = {};
+    if (query.email) {
+      where.email = ILike(`%${query.email}%`);
+    }
+    if (query.role) {
+      where.role = query.role;
+    }
+    if (query.status) {
+      where.status = query.status;
+    }
+
+    const rows = await this.repository.find({
+      where,
+      order: { createdAt: query.sortOrder ?? AccountsSortOrder.DESC },
+      skip: (page - 1) * limit,
+      take: limit,
+    });
+    return rows.map(this.toDomain);
+  }
+
+  async findAll(): Promise<Account[]> {
+    const rows = await this.repository.find();
+    return rows.map(this.toDomain);
+  }
+
+  async activate(accountId: string): Promise<void> {
+    const result = await this.repository.update(accountId, { status: AccountStatus.ACTIVE });
+    if (result.affected === 1) {
+      return;
+    }
+    throw new DomainException('Failed to activate account');
   }
 
   private toDomain(row: AccountOrmEntity): Account {
