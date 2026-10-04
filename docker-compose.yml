@@ -24,6 +24,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      target: production
     container_name: fdff_api
     restart: always
     depends_on:
@@ -41,6 +42,33 @@ services:
     ports:
       - '${PORT:-3000}:${PORT:-3000}'
     volumes:
+      - ./keys:/app/keys:ro
+
+  api-dev:
+    profiles:
+      - dev
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    container_name: fdff_api_dev
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: development
+      DB_HOST: db
+      DB_PORT: 5432
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
+      CHOKIDAR_USEPOLLING: 'true'
+    ports:
+      - '${PORT:-3000}:${PORT:-3000}'
+    volumes:
+      - .:/app
+      - /app/node_modules
       - ./keys:/app/keys:ro
 
 volumes:
