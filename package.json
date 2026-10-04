@@ -82,8 +82,16 @@
     "transform": {
       "^.+\\.(t|j)s$": "ts-jest"
     },
+    "moduleNameMapper": {
+      "^src/(.*)$": "<rootDir>/$1"
+    },
     "collectCoverageFrom": [
-      "**/*.(t|j)s"
+      "**/*.(t|j)s",
+      "!main.ts",
+      "!**/*.module.ts",
+      "!**/dtos/**",
+      "!**/*.orm-entity.ts",
+      "!**/testing/**"
     ],
     "coverageDirectory": "../coverage",
     "testEnvironment": "node"
