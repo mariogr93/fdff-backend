@@ -145,7 +145,7 @@ Repository methods: `findById`, `findByEmail`, `save`, `update`.
 
 ### Bootstrap & schema (shared)
 
-- SQL schema: `src/shared/database/seeds/001-initial-setup.sql` (Docker init + `npm run db:schema`).
+- Schema: TypeORM migrations in `src/shared/database/migrations/` (`npm run migration:run`; also applied on app boot).
 - Admin seed: `src/shared/database/seed-admin.ts` (`npm run db:seed`, env: `ADMIN_EMAIL`, `ADMIN_PASSWORD`).
 
 ### Module entry
@@ -259,8 +259,8 @@ Login (`LoginDto`) — length bounds only (no entropy on existing credentials):
 ### Database
 
 - Table: `accounts` (PostgreSQL enums `account_role`, `account_status`).
-- Dev: TypeORM `synchronize: true` when `NODE_ENV !== 'production'`.
-- Prod: apply `001-initial-setup.sql`; run `npm run db:seed` for initial admin.
+- Schema is migration-owned; `synchronize` is off in every environment.
+- Prod: `npm run migration:run:prod`, then `npm run db:seed:prod` for the initial admin.
 
 ---
 
@@ -295,7 +295,7 @@ Login (`LoginDto`) — length bounds only (no entropy on existing credentials):
 4. **Infrastructure** — adapter implementation only in `infrastructure/`.
 5. **Presentation** — DTO + controller method; apply `@Throttle` / guards as needed.
 6. **Wire** — register providers in `iam.module.ts`; export use case if other modules need it.
-7. **Schema** — update `001-initial-setup.sql` + rely on sync or add migration.
+7. **Schema** — edit the ORM entity, then `npm run migration:generate` and review the SQL.
 8. **Do not** put business rules in controllers or ORM entities.
 
 ### Suggested next slices (priority order)

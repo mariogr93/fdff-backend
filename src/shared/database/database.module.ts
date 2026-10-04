@@ -15,7 +15,11 @@ import { TypeOrmModule } from '@nestjs/typeorm';
         password: config.get<string>('DB_PASSWORD', 'postgres_password'),
         database: config.get<string>('DB_NAME', 'fdff'),
         autoLoadEntities: true,
-        synchronize: config.get<string>('NODE_ENV') !== 'production',
+        // Schema is owned by migrations in every environment; see data-source.ts.
+        synchronize: false,
+        migrations: [__dirname + '/migrations/*.{ts,js}'],
+        migrationsTableName: 'migrations',
+        migrationsRun: true,
       }),
     }),
   ],

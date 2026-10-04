@@ -17,23 +17,35 @@ docker compose up -d db
 
 Copy `.env.example` to `.env` and adjust `DB_*` values if needed (defaults match `docker-compose.yml`).
 
-- **Schema (SQL):** [src/shared/database/seeds/001-initial-setup.sql](src/shared/database/seeds/001-initial-setup.sql) — enums + `accounts` table only.
+- **Schema:** owned by TypeORM migrations in [src/shared/database/migrations/](src/shared/database/migrations/). The CLI connection lives in [src/shared/database/data-source.ts](src/shared/database/data-source.ts); the running app uses [src/shared/database/database.module.ts](src/shared/database/database.module.ts). `synchronize` is **off in every environment** — the entity decorators are the source of truth for *generating* migrations, never for mutating a live database.
 - **Initial admin (TypeScript):** [src/shared/database/seed-admin.ts](src/shared/database/seed-admin.ts) — reads `ADMIN_EMAIL` and `ADMIN_PASSWORD` from `.env`, hashes with bcrypt, inserts via `TypeOrmAccountRepository`. Skips if the email already exists (never overwrites passwords).
 
 **Reset database from scratch:**
 
 ```bash
 docker compose down -v
-docker compose up -d --build
+docker compose up -d db
+npm run migration:run
 npm run db:seed
 ```
 
-On first start, Postgres runs the SQL schema automatically. Then run `npm run db:seed` to create the admin (requires `ADMIN_EMAIL` and `ADMIN_PASSWORD` in `.env`).
+The app also runs pending migrations on boot (`migrationsRun: true`), so `docker compose up` alone is enough; `migration:run` is for when you want the schema before starting the API.
 
-Re-apply schema only on an existing database: `npm run db:schema`
+**Changing the schema:**
 
-- **Development:** TypeORM `synchronize` is also enabled when `NODE_ENV` is not `production`.
-- **Production:** Set `NODE_ENV=production`, apply schema SQL, then `npm run db:seed`.
+```bash
+# 1. edit the *.orm-entity.ts decorators
+# 2. generate the diff against your current database
+npm run migration:generate -- src/shared/database/migrations/DescribeTheChange
+# 3. read the generated SQL before running it
+npm run migration:run
+```
+
+`npm run migration:show` lists applied vs pending; `npm run migration:revert` rolls back one. Verify a change is complete by re-running `npm run typeorm -- schema:log` — it should report the schema is up to date.
+
+> **Review generated migrations.** To change a column type TypeORM may emit `DROP COLUMN` + `ADD COLUMN`, which destroys data. Replace those with `ALTER COLUMN ... TYPE ...` by hand.
+
+- **Production:** set `NODE_ENV=production`, then `npm run migration:run:prod` (runs from `dist/`, no ts-node needed) and `npm run db:seed:prod`.
 
 Start the API locally:
 

@@ -16,66 +16,70 @@ export class FakeAccountRepository implements IAccountRepository {
     }
   }
 
-  async findById(id: string): Promise<Account | null> {
-    return this.accounts.get(id) ?? null;
+  findById(id: string): Promise<Account | null> {
+    return Promise.resolve(this.accounts.get(id) ?? null);
   }
 
-  async findByEmail(email: string): Promise<Account | null> {
-    return (
-      [...this.accounts.values()].find((a) => a.email === email) ?? null
+  findByEmail(email: string): Promise<Account | null> {
+    return Promise.resolve(this.list().find((a) => a.email === email) ?? null);
+  }
+
+  findByRefreshTokenHash(hash: string): Promise<Account | null> {
+    return Promise.resolve(
+      this.list().find((a) => a.refreshTokenHash === hash) ?? null,
     );
   }
 
-  async findByRefreshTokenHash(hash: string): Promise<Account | null> {
-    return (
-      [...this.accounts.values()].find((a) => a.refreshTokenHash === hash) ??
-      null
-    );
-  }
-
-  async save(account: Account): Promise<void> {
+  save(account: Account): Promise<void> {
     this.accounts.set(account.id, account);
+    return Promise.resolve();
   }
 
-  async update(account: Account): Promise<void> {
+  update(account: Account): Promise<void> {
     this.accounts.set(account.id, account);
+    return Promise.resolve();
   }
 
-  async findAll(): Promise<Account[]> {
-    return [...this.accounts.values()];
+  findAll(): Promise<Account[]> {
+    return Promise.resolve(this.list());
   }
 
-  async findMany(query: AccountsQuery): Promise<Account[]> {
+  findMany(query: AccountsQuery): Promise<Account[]> {
     const page = query.page ?? 1;
     const limit = query.limit ?? 10;
+    const offset = (page - 1) * limit;
 
-    const matches = [...this.accounts.values()].filter((account) => {
+    const matches = this.list().filter((account) => {
       if (query.email && !account.email.includes(query.email)) return false;
       if (query.role && account.role !== query.role) return false;
       if (query.status && account.status !== query.status) return false;
       return true;
     });
 
-    return matches.slice((page - 1) * limit, (page - 1) * limit + limit);
+    return Promise.resolve(matches.slice(offset, offset + limit));
   }
 
-  async activate(accountId: string): Promise<void> {
+  activate(accountId: string): Promise<void> {
     const account = this.accounts.get(accountId);
-    if (!account) {
-      return;
+    if (account) {
+      this.accounts.set(
+        accountId,
+        new Account(
+          account.id,
+          account.email,
+          account.passwordHash,
+          account.role,
+          AccountStatus.ACTIVE,
+          account.failedLoginAttempts,
+          account.lockedUntil,
+          account.refreshTokenHash,
+        ),
+      );
     }
-    this.accounts.set(
-      accountId,
-      new Account(
-        account.id,
-        account.email,
-        account.passwordHash,
-        account.role,
-        AccountStatus.ACTIVE,
-        account.failedLoginAttempts,
-        account.lockedUntil,
-        account.refreshTokenHash,
-      ),
-    );
+    return Promise.resolve();
+  }
+
+  private list(): Account[] {
+    return [...this.accounts.values()];
   }
 }

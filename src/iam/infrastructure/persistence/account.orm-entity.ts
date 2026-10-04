@@ -10,13 +10,14 @@ import { UserRoles } from '../../domain/enums/user-roles.enums';
 
 @Entity('accounts')
 export class AccountOrmEntity {
+  // Always supplied by the application (randomUUID), so no database default.
   @PrimaryColumn('uuid')
   id: string;
 
-  @Column({ unique: true })
+  @Column({ length: 255, unique: true })
   email: string;
 
-  @Column({ name: 'password_hash' })
+  @Column({ name: 'password_hash', length: 255 })
   passwordHash: string;
 
   @Column({ type: 'enum', enum: UserRoles, enumName: 'account_role' })
