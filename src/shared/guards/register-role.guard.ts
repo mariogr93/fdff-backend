@@ -53,7 +53,7 @@ export class RegisterRoleGuard implements CanActivate {
 
       if (
         !account ||
-        account.status !== AccountStatus.APPROVED ||
+        account.status !== AccountStatus.ACTIVE ||
         account.role !== UserRoles.ADMIN
       ) {
         throw new ForbiddenRoleAssignmentException();

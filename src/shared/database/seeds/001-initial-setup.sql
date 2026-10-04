@@ -10,7 +10,7 @@ EXCEPTION
 END $$;
 
 DO $$ BEGIN
-  CREATE TYPE account_status AS ENUM ('PENDING', 'APPROVED', 'REJECTED');
+  CREATE TYPE account_status AS ENUM ('PENDING', 'ACTIVE', 'INACTIVE');
 EXCEPTION
   WHEN duplicate_object THEN NULL;
 END $$;

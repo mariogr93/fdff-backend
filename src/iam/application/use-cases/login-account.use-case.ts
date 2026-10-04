@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { Account } from '../../domain/account.model';
 import { AccountStatus } from '../../domain/enums/account-status.enum';
 import { AccountLockedException } from '../../domain/exceptions/account-locked.exception';
-import { AccountNotApprovedException } from '../../domain/exceptions/account-not-approved.exception';
+import { AccountNotActivatedException } from '../../domain/exceptions/account-not-activated.exception';
 import { InvalidCredentialsException } from '../../domain/exceptions/invalid-credentials.exception';
 import {
   generateRefreshToken,
@@ -79,6 +79,7 @@ export class LoginAccountUseCase {
         account.passwordHash,
       );
     } else {
+      // This is a timing-safe check to prevent account enumeration attacks.
       await this.passwordHasher.compare(command.plainPassword, DUMMY_HASH);
     }
 
@@ -91,8 +92,8 @@ export class LoginAccountUseCase {
 
     await this.resetLoginAttempts(account);
 
-    if (account.status !== AccountStatus.APPROVED) {
-      throw new AccountNotApprovedException();
+    if (account.status !== AccountStatus.ACTIVE) {
+      throw new AccountNotActivatedException();
     }
 
     const refreshToken = generateRefreshToken();

@@ -48,7 +48,7 @@ export class RefreshAccountUseCase {
     const tokenHash = hashRefreshToken(plainRefreshToken);
     const account = await this.accountRepo.findByRefreshTokenHash(tokenHash);
 
-    if (!account || account.status !== AccountStatus.APPROVED) {
+    if (!account || account.status !== AccountStatus.ACTIVE) {
       throw new InvalidRefreshTokenException();
     }
 

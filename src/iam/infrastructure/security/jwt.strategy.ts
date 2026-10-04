@@ -38,9 +38,9 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       throw new UnauthorizedException('Account not found.');
     }
 
-    if (account.status !== AccountStatus.APPROVED) {
+    if (account.status !== AccountStatus.ACTIVE) {
       throw new UnauthorizedException(
-        'This account is still pending approval or has been suspended.',
+        'This account is still pending activation or has been suspended.',
       );
     }
 

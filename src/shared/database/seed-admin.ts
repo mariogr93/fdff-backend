@@ -20,6 +20,7 @@ async function seedAdmin(): Promise<void> {
   });
 
   try {
+    console.log('Seeding admin account...');
     const config = app.get(ConfigService);
     const adminEmail = config.get<string>('ADMIN_EMAIL')?.trim();
     const adminPassword = config.get<string>('ADMIN_PASSWORD')?.trim();
@@ -50,7 +51,7 @@ async function seedAdmin(): Promise<void> {
       adminEmail,
       passwordHash,
       UserRoles.ADMIN,
-      AccountStatus.APPROVED,
+      AccountStatus.ACTIVE,
     );
 
     await accountRepo.save(admin);
