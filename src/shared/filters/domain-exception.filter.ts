@@ -5,7 +5,7 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { Response } from 'express';
-import { DomainException } from '../../iam/domain/exceptions/domain.exception';
+import { DomainException } from '../domain/domain.exception';
 
 @Catch(DomainException)
 export class DomainExceptionFilter implements ExceptionFilter {
@@ -13,10 +13,12 @@ export class DomainExceptionFilter implements ExceptionFilter {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
 
-    response.status(exception.statusCode ?? HttpStatus.INTERNAL_SERVER_ERROR).json({
-      statusCode: exception.statusCode,
-      message: exception.message,
-      error: exception.name,
-    });
+    response
+      .status(exception.statusCode ?? HttpStatus.INTERNAL_SERVER_ERROR)
+      .json({
+        statusCode: exception.statusCode,
+        message: exception.message,
+        error: exception.name,
+      });
   }
 }

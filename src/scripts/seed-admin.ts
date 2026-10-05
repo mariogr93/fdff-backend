@@ -1,18 +1,18 @@
 import { NestFactory } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'crypto';
-import { AppModule } from '../../app.module';
+import { AppModule } from '../app.module';
 import {
   I_ACCOUNT_REPOSITORY,
   type IAccountRepository,
-} from '../../iam/application/ports/account.repository.interface';
+} from '../iam/application/ports/account.repository.interface';
 import {
   I_PASSWORD_HASHER,
   type IPasswordHasherPort,
-} from '../../iam/application/ports/password-hasher.port';
-import { Account } from '../../iam/domain/account.model';
-import { AccountStatus } from '../../iam/domain/enums/account-status.enum';
-import { UserRoles } from '../../iam/domain/enums/user-roles.enums';
+} from '../iam/application/ports/password-hasher.port';
+import { Account } from '../iam/domain/account.model';
+import { AccountStatus } from '../iam/domain/enums/account-status.enum';
+import { UserRoles } from '../iam/domain/enums/user-roles.enums';
 
 async function seedAdmin(): Promise<void> {
   const app = await NestFactory.createApplicationContext(AppModule, {

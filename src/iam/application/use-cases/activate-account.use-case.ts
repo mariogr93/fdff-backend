@@ -1,8 +1,8 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { type IAccountRepository, I_ACCOUNT_REPOSITORY } from "../ports/account.repository.interface";
-import { AccountNotFoundException } from "src/iam/domain/exceptions/account-not-found.exception";
-import { AccountStatus } from "src/iam/domain/enums/account-status.enum";
-import { Account } from "src/iam/domain/account.model";
+import { AccountNotFoundException } from "../../domain/exceptions/account-not-found.exception";
+import { AccountStatus } from "../../domain/enums/account-status.enum";
+import { Account } from "../../domain/account.model";
 
 
 

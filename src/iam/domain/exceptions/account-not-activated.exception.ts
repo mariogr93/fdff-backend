@@ -1,4 +1,4 @@
-import { DomainException } from './domain.exception';
+import { DomainException } from '../../../shared/domain/domain.exception';
 
 export class AccountNotActivatedException extends DomainException {
   constructor() {

@@ -69,21 +69,31 @@ src/iam/
 │
 └── presentation/                 # HTTP delivery
     ├── auth.controller.ts
+    ├── account.controller.ts
+    ├── guards/                   # authorization is IAM's job, so guards live here
+    │   ├── jwt-auth.guard.ts     # Passport JWT guard
+    │   ├── roles.guard.ts        # @Roles decorator + RolesGuard
+    │   └── register-role.guard.ts # privileged registration authorization
     └── dtos/
         ├── register-account.dto.ts
         └── login.dto.ts
 ```
 
-**Shared cross-cutting pieces** (outside `iam/` but IAM-dependent):
+`IamModule` exports `JwtAuthGuard` and `RolesGuard`. A future slice that guards a route must import `IamModule`, because `JwtAuthGuard` resolves the `'jwt'` strategy this module registers.
+
+**Shared kernel** (outside `iam/`, and deliberately free of any dependency on it):
 
 ```
-src/shared/
-├── database/           # TypeORM root config, SQL schema seed, TS admin seed
-├── filters/            # DomainExceptionFilter (global)
-└── guards/
-    ├── jwt-auth.guard.ts       # Passport JWT guard (ready; not on routes yet)
-    └── register-role.guard.ts  # Privileged registration authorization
+src/
+├── shared/
+│   ├── domain/         # DomainException — the one base class every context raises
+│   ├── database/       # TypeORM root config, data source, migrations
+│   ├── filters/        # DomainExceptionFilter (global)
+│   └── validators/     # @IsPasswordStrong
+└── scripts/            # composition roots: seed-admin.ts
 ```
+
+`shared/` must not import from any bounded context. The admin seed does depend on IAM, so it lives in `src/scripts/` as a composition root alongside `main.ts`, not in `shared/`.
 
 ---
 
@@ -146,7 +156,7 @@ Repository methods: `findById`, `findByEmail`, `save`, `update`.
 ### Bootstrap & schema (shared)
 
 - Schema: TypeORM migrations in `src/shared/database/migrations/` (`npm run migration:run`; also applied on app boot).
-- Admin seed: `src/shared/database/seed-admin.ts` (`npm run db:seed`, env: `ADMIN_EMAIL`, `ADMIN_PASSWORD`).
+- Admin seed: `src/scripts/seed-admin.ts` (`npm run db:seed`, env: `ADMIN_EMAIL`, `ADMIN_PASSWORD`).
 
 ### Module entry
 

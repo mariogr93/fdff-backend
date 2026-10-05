@@ -12,7 +12,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { Throttle } from '@nestjs/throttler';
 import type { Request, Response } from 'express';
-import { RegisterRoleGuard } from '../../shared/guards/register-role.guard';
+import { RegisterRoleGuard } from './guards/register-role.guard';
 import { LoginAccountUseCase } from '../application/use-cases/login-account.use-case';
 import { RefreshAccountUseCase } from '../application/use-cases/refresh-account.use-case';
 import { RegisterAccountUseCase } from '../application/use-cases/register-account.use-case';

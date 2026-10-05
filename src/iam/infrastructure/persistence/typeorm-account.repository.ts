@@ -9,7 +9,7 @@ import {
 import { Account } from '../../domain/account.model';
 import { AccountOrmEntity } from './account.orm-entity';
 import { AccountStatus } from '../../domain/enums/account-status.enum';
-import { DomainException } from '../../domain/exceptions/domain.exception';
+import { DomainException } from '../../../shared/domain/domain.exception';
 
 @Injectable()
 export class TypeOrmAccountRepository implements IAccountRepository {

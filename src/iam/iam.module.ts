@@ -3,7 +3,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule, JwtSignOptions } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { RegisterRoleGuard } from '../shared/guards/register-role.guard';
+import { RegisterRoleGuard } from './presentation/guards/register-role.guard';
 import { I_ACCOUNT_REPOSITORY } from './application/ports/account.repository.interface';
 import { I_PASSWORD_HASHER } from './application/ports/password-hasher.port';
 import { I_TOKEN_SERVICE } from './application/ports/token.service.port';
@@ -20,7 +20,8 @@ import { JwtStrategy } from './infrastructure/security/jwt.strategy';
 import { AuthController } from './presentation/auth.controller';
 import { AccountController } from './presentation/account.controller';
 import { ActivateAccountUseCase } from './application/use-cases/activate-account.use-case';
-import { RolesGuard } from 'src/shared/guards/roles.guard';
+import { RolesGuard } from './presentation/guards/roles.guard';
+import { JwtAuthGuard } from './presentation/guards/jwt-auth.guard';
 import { LogoutAccountUseCase } from './application/use-cases/logout-account.use-case';
 
 @Module({
@@ -52,6 +53,7 @@ import { LogoutAccountUseCase } from './application/use-cases/logout-account.use
     JwtStrategy,
     RegisterRoleGuard,
     RolesGuard,
+    JwtAuthGuard,
     RegisterAccountUseCase,
     LoginAccountUseCase,
     LogoutAccountUseCase,
@@ -71,6 +73,14 @@ import { LogoutAccountUseCase } from './application/use-cases/logout-account.use
       useClass: JwtTokenService,
     },
   ],
-  exports: [RegisterAccountUseCase, LoginAccountUseCase],
+  // Authorization belongs to IAM, so the guards are published here. Any future
+  // slice that guards a route must import IamModule: JwtAuthGuard resolves the
+  // 'jwt' strategy registered by this module's PassportModule.
+  exports: [
+    RegisterAccountUseCase,
+    LoginAccountUseCase,
+    JwtAuthGuard,
+    RolesGuard,
+  ],
 })
 export class IamModule {}

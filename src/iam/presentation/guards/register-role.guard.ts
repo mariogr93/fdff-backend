@@ -9,14 +9,14 @@ import { Request } from 'express';
 import {
   I_ACCOUNT_REPOSITORY,
   type IAccountRepository,
-} from '../../iam/application/ports/account.repository.interface';
+} from '../../application/ports/account.repository.interface';
 import {
   I_TOKEN_SERVICE,
   type ITokenServicePort,
-} from '../../iam/application/ports/token.service.port';
-import { AccountStatus } from '../../iam/domain/enums/account-status.enum';
-import { UserRoles } from '../../iam/domain/enums/user-roles.enums';
-import { ForbiddenRoleAssignmentException } from '../../iam/domain/exceptions/forbidden-role-assignment.exception';
+} from '../../application/ports/token.service.port';
+import { AccountStatus } from '../../domain/enums/account-status.enum';
+import { UserRoles } from '../../domain/enums/user-roles.enums';
+import { ForbiddenRoleAssignmentException } from '../../domain/exceptions/forbidden-role-assignment.exception';
 
 @Injectable()
 export class RegisterRoleGuard implements CanActivate {

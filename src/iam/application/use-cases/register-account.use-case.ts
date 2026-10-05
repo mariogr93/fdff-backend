@@ -2,10 +2,10 @@ import { Inject, Injectable } from "@nestjs/common";
 import { Account } from "../../domain/account.model";
 import { I_ACCOUNT_REPOSITORY, type IAccountRepository } from "../ports/account.repository.interface";
 import { I_PASSWORD_HASHER, type IPasswordHasherPort } from "../ports/password-hasher.port";
-import { AccountStatus } from "src/iam/domain/enums/account-status.enum";
-import { UserRoles } from "src/iam/domain/enums/user-roles.enums";
+import { AccountStatus } from "../../domain/enums/account-status.enum";
+import { UserRoles } from "../../domain/enums/user-roles.enums";
 import { randomUUID } from 'crypto';
-import { AccountAlreadyExistsException } from "src/iam/domain/exceptions/account-already-exists.exception";
+import { AccountAlreadyExistsException } from "../../domain/exceptions/account-already-exists.exception";
 
 
 // We use an internal Application DTO to define the exact input this Use Case needs.

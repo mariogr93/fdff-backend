@@ -1,9 +1,9 @@
 import { Controller, Get, Param, Post, Req, UseGuards } from "@nestjs/common";
-import { JwtAuthGuard } from "src/shared/guards/jwt-auth.guard";
+import { JwtAuthGuard } from "./guards/jwt-auth.guard";
 import { GetAccountsUseCase } from "../application/use-cases/get-accounts.use-case";
 import { UserRoles } from "../domain/enums/user-roles.enums";
 import { ActivateAccountUseCase } from "../application/use-cases/activate-account.use-case";
-import { Roles, RolesGuard } from "src/shared/guards/roles.guard";
+import { Roles, RolesGuard } from "./guards/roles.guard";
 
 @Controller('accounts')
 export class AccountController {

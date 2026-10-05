@@ -18,7 +18,7 @@ docker compose up -d db
 Copy `.env.example` to `.env` and adjust `DB_*` values if needed (defaults match `docker-compose.yml`).
 
 - **Schema:** owned by TypeORM migrations in [src/shared/database/migrations/](src/shared/database/migrations/). The CLI connection lives in [src/shared/database/data-source.ts](src/shared/database/data-source.ts); the running app uses [src/shared/database/database.module.ts](src/shared/database/database.module.ts). `synchronize` is **off in every environment** — the entity decorators are the source of truth for *generating* migrations, never for mutating a live database.
-- **Initial admin (TypeScript):** [src/shared/database/seed-admin.ts](src/shared/database/seed-admin.ts) — reads `ADMIN_EMAIL` and `ADMIN_PASSWORD` from `.env`, hashes with bcrypt, inserts via `TypeOrmAccountRepository`. Skips if the email already exists (never overwrites passwords).
+- **Initial admin (TypeScript):** [src/scripts/seed-admin.ts](src/scripts/seed-admin.ts) — reads `ADMIN_EMAIL` and `ADMIN_PASSWORD` from `.env`, hashes with bcrypt, inserts via `TypeOrmAccountRepository`. Skips if the email already exists (never overwrites passwords).
 
 **Reset database from scratch:**
 

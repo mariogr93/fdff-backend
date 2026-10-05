@@ -1,6 +1,6 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { type IAccountRepository, I_ACCOUNT_REPOSITORY } from "../ports/account.repository.interface";
-import { Account } from "src/iam/domain/account.model";
+import { Account } from "../../domain/account.model";
 
 
 
