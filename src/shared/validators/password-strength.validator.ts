@@ -12,7 +12,9 @@ export const PASSWORD_STRENGTH_REGEX =
 @ValidatorConstraint({ name: 'isPasswordStrong', async: false })
 export class PasswordStrengthConstraint implements ValidatorConstraintInterface {
   validate(password: string): boolean {
-    return typeof password === 'string' && PASSWORD_STRENGTH_REGEX.test(password);
+    return (
+      typeof password === 'string' && PASSWORD_STRENGTH_REGEX.test(password)
+    );
   }
 
   defaultMessage(): string {

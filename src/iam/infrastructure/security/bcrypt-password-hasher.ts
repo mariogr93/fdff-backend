@@ -6,11 +6,13 @@ import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class BcryptPasswordHasher implements IPasswordHasherPort {
-
   private readonly saltRounds: number;
 
   constructor(private readonly configService: ConfigService) {
-    this.saltRounds = parseInt(this.configService.get<string>('SALT_ROUNDS', '12'), 10);
+    this.saltRounds = parseInt(
+      this.configService.get<string>('SALT_ROUNDS', '12'),
+      10,
+    );
   }
 
   private preHash(plain: string): string {

@@ -2,7 +2,6 @@ import { CookieOptions } from 'express';
 
 export const REFRESH_TOKEN_COOKIE = 'refresh_token';
 
-
 export function buildRefreshTokenCookieOptions(
   maxAgeMs: number,
   isProduction: boolean,
@@ -17,7 +16,8 @@ export function buildRefreshTokenCookieOptions(
 }
 
 export function buildClearRefreshTokenCookieOptions(
-  isProduction: boolean): CookieOptions {
+  isProduction: boolean,
+): CookieOptions {
   return {
     httpOnly: true,
     secure: isProduction,

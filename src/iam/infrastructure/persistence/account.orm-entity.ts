@@ -37,7 +37,12 @@ export class AccountOrmEntity {
   @Column({ name: 'locked_until', type: 'timestamptz', nullable: true })
   lockedUntil: Date | null;
 
-  @Column({ name: 'refresh_token_hash', type: 'varchar', length: 64, nullable: true })
+  @Column({
+    name: 'refresh_token_hash',
+    type: 'varchar',
+    length: 64,
+    nullable: true,
+  })
   refreshTokenHash: string | null;
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
