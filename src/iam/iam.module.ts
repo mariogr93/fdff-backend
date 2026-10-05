@@ -5,6 +5,11 @@ import { PassportModule } from '@nestjs/passport';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { RegisterRoleGuard } from './presentation/guards/register-role.guard';
 import { I_ACCOUNT_REPOSITORY } from './application/ports/account.repository.interface';
+import {
+  type AuthPolicy,
+  I_AUTH_POLICY,
+} from './application/ports/auth-policy';
+import { DEFAULT_LOCKOUT_POLICY } from './domain/account.model';
 import { I_PASSWORD_HASHER } from './application/ports/password-hasher.port';
 import { I_TOKEN_SERVICE } from './application/ports/token.service.port';
 import { GetAccountsUseCase } from './application/use-cases/get-accounts.use-case';
@@ -60,6 +65,23 @@ import { LogoutAccountUseCase } from './application/use-cases/logout-account.use
     RefreshAccountUseCase,
     GetAccountsUseCase,
     ActivateAccountUseCase,
+    {
+      // Every tunable auth value is resolved here, once. Previously
+      // REFRESH_TOKEN_EXPIRES_DAYS was parsed separately in two use cases.
+      provide: I_AUTH_POLICY,
+      inject: [ConfigService],
+      useFactory: (config: ConfigService): AuthPolicy => {
+        const refreshDays = parseInt(
+          config.get<string>('REFRESH_TOKEN_EXPIRES_DAYS', '7'),
+          10,
+        );
+
+        return {
+          refreshTokenTtlMs: refreshDays * 24 * 60 * 60 * 1000,
+          lockout: DEFAULT_LOCKOUT_POLICY,
+        };
+      },
+    },
     {
       provide: I_ACCOUNT_REPOSITORY,
       useClass: TypeOrmAccountRepository,

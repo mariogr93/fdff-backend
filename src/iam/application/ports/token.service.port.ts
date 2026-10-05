@@ -1,5 +1,3 @@
-import { Account } from '../../domain/account.model';
-
 export const I_TOKEN_SERVICE = Symbol('I_TOKEN_SERVICE');
 
 export interface AuthTokens {

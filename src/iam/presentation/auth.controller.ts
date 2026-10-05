@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Inject,
   HttpCode,
   HttpStatus,
   Post,
@@ -11,6 +12,10 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Throttle } from '@nestjs/throttler';
+import {
+  type AuthPolicy,
+  I_AUTH_POLICY,
+} from '../application/ports/auth-policy';
 import type { Request, Response } from 'express';
 import { RegisterRoleGuard } from './guards/register-role.guard';
 import { LoginAccountUseCase } from '../application/use-cases/login-account.use-case';
@@ -34,6 +39,8 @@ export class AuthController {
     private readonly logoutAccount: LogoutAccountUseCase,
     private readonly refreshAccount: RefreshAccountUseCase,
     private readonly config: ConfigService,
+    @Inject(I_AUTH_POLICY)
+    private readonly policy: AuthPolicy,
   ) {}
 
   @Post('register')
@@ -72,7 +79,7 @@ export class AuthController {
       REFRESH_TOKEN_COOKIE,
       result.refreshToken,
       buildRefreshTokenCookieOptions(
-        this.loginAccount.refreshTokenTtlMs,
+        this.policy.refreshTokenTtlMs,
         isProduction,
       ),
     );
@@ -84,20 +91,19 @@ export class AuthController {
     };
   }
 
-
   @Post('logout')
   @Throttle({ default: { limit: 5, ttl: 60000 } })
   @HttpCode(HttpStatus.OK)
-  async logout(
-    @Req() req: Request,
-    @Res({ passthrough: true }) res: Response,
-  ) {
+  async logout(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
     const plainRefreshToken = req.cookies?.[REFRESH_TOKEN_COOKIE];
 
     await this.logoutAccount.execute(plainRefreshToken);
 
     const isProduction = this.config.get<string>('NODE_ENV') === 'production';
-    res.clearCookie(REFRESH_TOKEN_COOKIE, buildClearRefreshTokenCookieOptions(isProduction));
+    res.clearCookie(
+      REFRESH_TOKEN_COOKIE,
+      buildClearRefreshTokenCookieOptions(isProduction),
+    );
 
     return;
   }
@@ -121,7 +127,7 @@ export class AuthController {
       REFRESH_TOKEN_COOKIE,
       result.refreshToken,
       buildRefreshTokenCookieOptions(
-        this.refreshAccount.refreshTokenTtlMs,
+        this.policy.refreshTokenTtlMs,
         isProduction,
       ),
     );

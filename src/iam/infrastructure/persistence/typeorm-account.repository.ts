@@ -64,16 +64,18 @@ export class TypeOrmAccountRepository implements IAccountRepository {
       skip: (page - 1) * limit,
       take: limit,
     });
-    return rows.map(this.toDomain);
+    return rows.map((row) => this.toDomain(row));
   }
 
   async findAll(): Promise<Account[]> {
     const rows = await this.repository.find();
-    return rows.map(this.toDomain);
+    return rows.map((row) => this.toDomain(row));
   }
 
   async activate(accountId: string): Promise<void> {
-    const result = await this.repository.update(accountId, { status: AccountStatus.ACTIVE });
+    const result = await this.repository.update(accountId, {
+      status: AccountStatus.ACTIVE,
+    });
     if (result.affected === 1) {
       return;
     }

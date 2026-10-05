@@ -14,7 +14,6 @@ import {
   I_TOKEN_SERVICE,
   type ITokenServicePort,
 } from '../../application/ports/token.service.port';
-import { AccountStatus } from '../../domain/enums/account-status.enum';
 import { UserRoles } from '../../domain/enums/user-roles.enums';
 import { ForbiddenRoleAssignmentException } from '../../domain/exceptions/forbidden-role-assignment.exception';
 
@@ -51,11 +50,7 @@ export class RegisterRoleGuard implements CanActivate {
       const identity = await this.tokenService.verify(token);
       const account = await this.accountRepo.findById(identity.id);
 
-      if (
-        !account ||
-        account.status !== AccountStatus.ACTIVE ||
-        account.role !== UserRoles.ADMIN
-      ) {
+      if (!account || !account.isActive() || account.role !== UserRoles.ADMIN) {
         throw new ForbiddenRoleAssignmentException();
       }
 

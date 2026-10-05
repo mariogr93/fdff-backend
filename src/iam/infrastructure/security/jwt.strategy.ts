@@ -7,7 +7,6 @@ import {
   type IAccountRepository,
 } from '../../application/ports/account.repository.interface';
 import { Account } from '../../domain/account.model';
-import { AccountStatus } from '../../domain/enums/account-status.enum';
 import { JwtPayload } from './jwt-payload.interface';
 import { loadJwtKeyPair } from './jwt-key.util';
 
@@ -38,7 +37,9 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       throw new UnauthorizedException('Account not found.');
     }
 
-    if (account.status !== AccountStatus.ACTIVE) {
+    // Re-checked from the database on every request, not read from the token,
+    // so deactivating an account revokes its access immediately.
+    if (!account.isActive()) {
       throw new UnauthorizedException(
         'This account is still pending activation or has been suspended.',
       );

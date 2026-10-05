@@ -1,7 +1,4 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { Account } from '../../domain/account.model';
-import { AccountStatus } from '../../domain/enums/account-status.enum';
 import { AccountLockedException } from '../../domain/exceptions/account-locked.exception';
 import { AccountNotActivatedException } from '../../domain/exceptions/account-not-activated.exception';
 import { InvalidCredentialsException } from '../../domain/exceptions/invalid-credentials.exception';
@@ -9,6 +6,7 @@ import {
   generateRefreshToken,
   hashRefreshToken,
 } from '../../infrastructure/security/refresh-token.util';
+import { type AuthPolicy, I_AUTH_POLICY } from '../ports/auth-policy';
 import {
   I_ACCOUNT_REPOSITORY,
   type IAccountRepository,
@@ -17,15 +15,14 @@ import {
   I_PASSWORD_HASHER,
   type IPasswordHasherPort,
 } from '../ports/password-hasher.port';
-import { type ITokenServicePort, I_TOKEN_SERVICE } from '../ports/token.service.port';
+import {
+  type ITokenServicePort,
+  I_TOKEN_SERVICE,
+} from '../ports/token.service.port';
 
 /** Precomputed bcrypt hash used when the email is unknown (timing-safe login). */
 const DUMMY_HASH =
   '$2b$10$rgxcUa.Y5EjZdl9P46KgfOykqygbBW0ktqYw2hYclfvoGluFSICDm';
-
-const MAX_FAILED_LOGIN_ATTEMPTS = 5;
-const LOCKOUT_DURATION_MS = 15 * 60 * 1000;
-const DEFAULT_REFRESH_TOKEN_DAYS = 7;
 
 export interface ILoginCommand {
   email: string;
@@ -42,8 +39,6 @@ export interface IAuthResult {
 
 @Injectable()
 export class LoginAccountUseCase {
-  private readonly refreshTokenMaxAgeMs: number;
-
   constructor(
     @Inject(I_ACCOUNT_REPOSITORY)
     private readonly accountRepo: IAccountRepository,
@@ -51,65 +46,55 @@ export class LoginAccountUseCase {
     private readonly passwordHasher: IPasswordHasherPort,
     @Inject(I_TOKEN_SERVICE)
     private readonly tokenService: ITokenServicePort,
-    config: ConfigService,
-  ) {
-    const refreshDays = parseInt(
-      config.get<string>('REFRESH_TOKEN_EXPIRES_DAYS', String(DEFAULT_REFRESH_TOKEN_DAYS)),
-      10,
-    );
-    this.refreshTokenMaxAgeMs = refreshDays * 24 * 60 * 60 * 1000;
-  }
-
-  get refreshTokenTtlMs(): number {
-    return this.refreshTokenMaxAgeMs;
-  }
+    @Inject(I_AUTH_POLICY)
+    private readonly policy: AuthPolicy,
+  ) {}
 
   async execute(command: ILoginCommand): Promise<IAuthResult> {
+    const now = new Date();
     const account = await this.accountRepo.findByEmail(command.email);
 
-    if (account?.lockedUntil && account.lockedUntil > new Date()) {
+    // Deliberately before the password check, as it has always been: a locked
+    // account short-circuits without running bcrypt. That is a timing signal
+    // which partly undercuts the DUMMY_HASH defence below, and is a known
+    // trade-off rather than an oversight — see docs/PROD-Security-gaps.md.
+    if (account?.isLocked(now)) {
       throw new AccountLockedException();
     }
 
-    let isPasswordValid = false;
-
-    if (account) {
-      isPasswordValid = await this.passwordHasher.compare(
-        command.plainPassword,
-        account.passwordHash,
-      );
-    } else {
-      // This is a timing-safe check to prevent account enumeration attacks.
-      await this.passwordHasher.compare(command.plainPassword, DUMMY_HASH);
-    }
+    // Always spend the cost of a bcrypt comparison, even for an unknown email,
+    // so response time does not reveal whether the account exists.
+    const isPasswordValid = account
+      ? await this.passwordHasher.compare(
+          command.plainPassword,
+          account.passwordHash,
+        )
+      : await this.passwordHasher
+          .compare(command.plainPassword, DUMMY_HASH)
+          .then(() => false);
 
     if (!account || !isPasswordValid) {
       if (account) {
-        await this.recordFailedLogin(account);
+        await this.accountRepo.update(
+          account.registerFailedLogin(this.policy.lockout, now),
+        );
       }
       throw new InvalidCredentialsException();
     }
 
-    await this.resetLoginAttempts(account);
-
-    if (account.status !== AccountStatus.ACTIVE) {
+    // Credentials are good, so the failed-attempt counter is cleared on every
+    // path from here — including the rejection below, which is why it is
+    // persisted before the status check rather than after.
+    if (!account.isActive()) {
+      await this.accountRepo.update(account.clearLoginAttempts());
       throw new AccountNotActivatedException();
     }
 
     const refreshToken = generateRefreshToken();
-    const refreshTokenHash = hashRefreshToken(refreshToken);
-
     await this.accountRepo.update(
-      new Account(
-        account.id,
-        account.email,
-        account.passwordHash,
-        account.role,
-        account.status,
-        0,
-        null,
-        refreshTokenHash,
-      ),
+      account
+        .clearLoginAttempts()
+        .withRefreshToken(hashRefreshToken(refreshToken)),
     );
 
     const { accessToken } = await this.tokenService.sign({
@@ -123,45 +108,5 @@ export class LoginAccountUseCase {
       accountId: account.id,
       role: account.role.toString(),
     };
-  }
-
-  private async recordFailedLogin(account: Account): Promise<void> {
-    const failedLoginAttempts = account.failedLoginAttempts + 1;
-    const lockedUntil =
-      failedLoginAttempts >= MAX_FAILED_LOGIN_ATTEMPTS
-        ? new Date(Date.now() + LOCKOUT_DURATION_MS)
-        : account.lockedUntil;
-
-    await this.accountRepo.update(
-      new Account(
-        account.id,
-        account.email,
-        account.passwordHash,
-        account.role,
-        account.status,
-        failedLoginAttempts,
-        lockedUntil,
-        account.refreshTokenHash,
-      ),
-    );
-  }
-
-  private async resetLoginAttempts(account: Account): Promise<void> {
-    if (account.failedLoginAttempts === 0 && account.lockedUntil === null) {
-      return;
-    }
-
-    await this.accountRepo.update(
-      new Account(
-        account.id,
-        account.email,
-        account.passwordHash,
-        account.role,
-        account.status,
-        0,
-        null,
-        account.refreshTokenHash,
-      ),
-    );
   }
 }
