@@ -3,7 +3,6 @@ import { AccountAlreadyExistsException } from '../../iam/domain/exceptions/accou
 import { AccountLockedException } from '../../iam/domain/exceptions/account-locked.exception';
 import { AccountNotActivatedException } from '../../iam/domain/exceptions/account-not-activated.exception';
 import { AccountNotFoundException } from '../../iam/domain/exceptions/account-not-found.exception';
-import { ForbiddenRoleAssignmentException } from '../../iam/domain/exceptions/forbidden-role-assignment.exception';
 import { ForbiddenRoleException } from '../../iam/domain/exceptions/forbidden-role.exception';
 import { InvalidCredentialsException } from '../../iam/domain/exceptions/invalid-credentials.exception';
 import { InvalidRefreshTokenException } from '../../iam/domain/exceptions/invalid-refresh-token.exception';
@@ -59,7 +58,6 @@ describe('DomainExceptionFilter', () => {
       new AccountLockedException(),
       new AccountNotActivatedException(),
       new AccountNotFoundException(),
-      new ForbiddenRoleAssignmentException(),
       new ForbiddenRoleException(),
       new InvalidCredentialsException(),
       new InvalidRefreshTokenException(),

@@ -69,7 +69,26 @@ npm run db:seed
 ```
 
 
-Public registration still creates `ATHLETE` accounts only. Use the admin `accessToken` to create `ADMIN` or `JUDGE` accounts via `POST /auth/register`.
+## Creating accounts
+
+Two separate endpoints, on purpose:
+
+| Endpoint | Who | Creates |
+|----------|-----|---------|
+| `POST /api/auth/register` | public, unauthenticated | always a `PENDING` `ATHLETE` — an admin must activate it before it can sign in |
+| `POST /api/accounts` | `ADMIN` only (Bearer token) | any role, `ACTIVE` immediately |
+
+The public route takes no role: `RegisterAccountUseCase` has no role parameter at all, so nothing reaching it can produce a privileged account. Admin account management lives on the same `/api/accounts` resource:
+
+```
+GET  /api/accounts?status=PENDING&email=mario&page=1&limit=10
+POST /api/accounts/activate/:accountId
+POST /api/accounts/deactivate/:accountId
+```
+
+Activation accepts `PENDING` or `INACTIVE` and returns `409` if the account is already active; deactivation also clears the stored refresh token, so an open session cannot be extended.
+
+> **Docs drift:** `docs/README-IAM.md`, `docs/nestjs-auth-docs.md` and `docs/ai-auth-context.md` still describe the pre-refactor IAM module — the `APPROVED`/`REJECTED` statuses, `RegisterRoleGuard`, and `AccountNotApprovedException`, none of which exist any more. Trust this README and the code until those are refreshed.
 
 ## Project setup
 

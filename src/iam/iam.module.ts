@@ -3,7 +3,6 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule, JwtSignOptions } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { RegisterRoleGuard } from './presentation/guards/register-role.guard';
 import { I_ACCOUNT_REPOSITORY } from './application/ports/account.repository.interface';
 import {
   type AuthPolicy,
@@ -25,6 +24,7 @@ import { JwtStrategy } from './infrastructure/security/jwt.strategy';
 import { AuthController } from './presentation/auth.controller';
 import { AccountController } from './presentation/account.controller';
 import { ActivateAccountUseCase } from './application/use-cases/activate-account.use-case';
+import { CreateAccountUseCase } from './application/use-cases/create-account.use-case';
 import { DeactivateAccountUseCase } from './application/use-cases/deactivate-account.use-case';
 import { RolesGuard } from './presentation/guards/roles.guard';
 import { JwtAuthGuard } from './presentation/guards/jwt-auth.guard';
@@ -57,7 +57,6 @@ import { LogoutAccountUseCase } from './application/use-cases/logout-account.use
   controllers: [AuthController, AccountController],
   providers: [
     JwtStrategy,
-    RegisterRoleGuard,
     RolesGuard,
     JwtAuthGuard,
     RegisterAccountUseCase,
@@ -66,6 +65,7 @@ import { LogoutAccountUseCase } from './application/use-cases/logout-account.use
     RefreshAccountUseCase,
     GetAccountsUseCase,
     ActivateAccountUseCase,
+    CreateAccountUseCase,
     DeactivateAccountUseCase,
     {
       // Every tunable auth value is resolved here, once. Previously

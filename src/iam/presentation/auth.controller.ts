@@ -8,7 +8,6 @@ import {
   Req,
   Res,
   UnauthorizedException,
-  UseGuards,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Throttle } from '@nestjs/throttler';
@@ -17,11 +16,9 @@ import {
   I_AUTH_POLICY,
 } from '../application/ports/auth-policy';
 import type { Request, Response } from 'express';
-import { RegisterRoleGuard } from './guards/register-role.guard';
 import { LoginAccountUseCase } from '../application/use-cases/login-account.use-case';
 import { RefreshAccountUseCase } from '../application/use-cases/refresh-account.use-case';
 import { RegisterAccountUseCase } from '../application/use-cases/register-account.use-case';
-import { UserRoles } from '../domain/enums/user-roles.enums';
 import {
   buildRefreshTokenCookieOptions,
   buildClearRefreshTokenCookieOptions,
@@ -30,6 +27,12 @@ import {
 import { LoginDto } from './dtos/login.dto';
 import { RegisterAccountDto } from './dtos/register-account.dto';
 import { LogoutAccountUseCase } from '../application/use-cases/logout-account.use-case';
+
+/** cookie-parser types req.cookies as `any`; narrow it in one place. */
+const readRefreshCookie = (req: Request): string | undefined => {
+  const cookies = req.cookies as Record<string, string | undefined> | undefined;
+  return cookies?.[REFRESH_TOKEN_COOKIE];
+};
 
 @Controller('auth')
 export class AuthController {
@@ -43,14 +46,14 @@ export class AuthController {
     private readonly policy: AuthPolicy,
   ) {}
 
+  // Public and unauthenticated. It needs no role guard because the use case
+  // cannot create anything but a PENDING ATHLETE.
   @Post('register')
   @Throttle({ default: { limit: 10, ttl: 3600000 } })
-  @UseGuards(RegisterRoleGuard)
   async register(@Body() dto: RegisterAccountDto) {
     const account = await this.registerAccount.execute({
       email: dto.email,
       plainPassword: dto.password,
-      role: dto.role ?? UserRoles.ATHLETE,
     });
 
     return {
@@ -95,9 +98,7 @@ export class AuthController {
   @Throttle({ default: { limit: 5, ttl: 60000 } })
   @HttpCode(HttpStatus.OK)
   async logout(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
-    const plainRefreshToken = req.cookies?.[REFRESH_TOKEN_COOKIE];
-
-    await this.logoutAccount.execute(plainRefreshToken);
+    await this.logoutAccount.execute(readRefreshCookie(req));
 
     const isProduction = this.config.get<string>('NODE_ENV') === 'production';
     res.clearCookie(
@@ -115,7 +116,7 @@ export class AuthController {
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const plainRefreshToken = req.cookies?.[REFRESH_TOKEN_COOKIE];
+    const plainRefreshToken = readRefreshCookie(req);
     if (!plainRefreshToken) {
       throw new UnauthorizedException('Refresh token cookie is missing.');
     }

@@ -29,12 +29,7 @@ const build = (accounts = [makeAccount()]) => {
     hash: jest.fn(() => Promise.resolve('hashed')),
     compare,
   };
-  const tokenService: ITokenServicePort = {
-    sign,
-    verify: jest.fn(() =>
-      Promise.resolve({ id: 'id', email: 'athlete@fdff.test' }),
-    ),
-  };
+  const tokenService: ITokenServicePort = { sign };
 
   const useCase = new LoginAccountUseCase(
     repo,

@@ -4,10 +4,13 @@ import request from 'supertest';
 import { App } from 'supertest/types';
 import { configureApp } from '../../configure-app';
 import { ActivateAccountUseCase } from '../application/use-cases/activate-account.use-case';
+import { CreateAccountUseCase } from '../application/use-cases/create-account.use-case';
 import { DeactivateAccountUseCase } from '../application/use-cases/deactivate-account.use-case';
 import { GetAccountsUseCase } from '../application/use-cases/get-accounts.use-case';
 import { I_ACCOUNT_REPOSITORY } from '../application/ports/account.repository.interface';
+import { I_PASSWORD_HASHER } from '../application/ports/password-hasher.port';
 import { AccountStatus } from '../domain/enums/account-status.enum';
+import { UserRoles } from '../domain/enums/user-roles.enums';
 import { makeAccount } from '../testing/account.fixture';
 import { FakeAccountRepository } from '../testing/fake-account.repository';
 import { AccountController } from './account.controller';
@@ -24,6 +27,13 @@ interface AccountsResponse {
   total: number;
   page: number;
   limit: number;
+}
+
+interface CreatedAccount {
+  id: string;
+  email: string;
+  role: string;
+  status: string;
 }
 
 interface ErrorResponse {
@@ -66,9 +76,17 @@ describe('AccountController', () => {
       controllers: [AccountController],
       providers: [
         GetAccountsUseCase,
+        CreateAccountUseCase,
         ActivateAccountUseCase,
         DeactivateAccountUseCase,
         { provide: I_ACCOUNT_REPOSITORY, useValue: repo },
+        {
+          provide: I_PASSWORD_HASHER,
+          useValue: {
+            hash: jest.fn(() => Promise.resolve('bcrypt-hash')),
+            compare: jest.fn(() => Promise.resolve(true)),
+          },
+        },
       ],
     })
       .overrideGuard(JwtAuthGuard)
@@ -146,6 +164,66 @@ describe('AccountController', () => {
     it('rejects an unknown query parameter with 400', async () => {
       await request(app.getHttpServer())
         .get('/api/accounts?sneaky=1')
+        .expect(400);
+    });
+  });
+
+  describe('POST /api/accounts', () => {
+    const judge = {
+      email: 'judge@fdff.test',
+      password: 'Judge$test123',
+      role: UserRoles.JUDGE,
+    };
+
+    it('creates a judge that is ACTIVE immediately, so the temporary password works', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/api/accounts')
+        .send(judge)
+        .expect(201);
+      const body = res.body as CreatedAccount;
+
+      expect(body.role).toBe(UserRoles.JUDGE);
+      expect(body.status).toBe(AccountStatus.ACTIVE);
+      expect(body).not.toHaveProperty('passwordHash');
+
+      const stored = await repo.findByEmail('judge@fdff.test');
+      expect(stored?.isActive()).toBe(true);
+    });
+
+    it('creates an admin', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/api/accounts')
+        .send({ ...judge, email: 'admin2@fdff.test', role: UserRoles.ADMIN })
+        .expect(201);
+
+      expect((res.body as CreatedAccount).role).toBe(UserRoles.ADMIN);
+    });
+
+    it('requires a role, unlike public signup', async () => {
+      await request(app.getHttpServer())
+        .post('/api/accounts')
+        .send({ email: 'norole@fdff.test', password: 'Judge$test123' })
+        .expect(400);
+    });
+
+    it('rejects an unknown role', async () => {
+      await request(app.getHttpServer())
+        .post('/api/accounts')
+        .send({ ...judge, role: 'SUPERUSER' })
+        .expect(400);
+    });
+
+    it('rejects a weak password', async () => {
+      await request(app.getHttpServer())
+        .post('/api/accounts')
+        .send({ ...judge, password: 'weak' })
+        .expect(400);
+    });
+
+    it('rejects a duplicate email', async () => {
+      await request(app.getHttpServer())
+        .post('/api/accounts')
+        .send({ ...judge, email: 'active@fdff.test' })
         .expect(400);
     });
   });

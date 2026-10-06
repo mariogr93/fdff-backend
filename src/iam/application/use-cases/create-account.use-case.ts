@@ -14,18 +14,18 @@ import {
 } from '../ports/password-hasher.port';
 
 /**
- * Public self-signup. There is deliberately no role field: this use case can
- * only ever produce a PENDING ATHLETE, so no request — however it is shaped,
- * and whatever a controller or guard gets wrong — can escalate through it.
- * Privileged accounts come from CreateAccountUseCase, which is admin-only.
+ * Admin-provisioned accounts — judges, other admins, or an athlete entered on
+ * someone's behalf. Only reachable behind JwtAuthGuard + @Roles(ADMIN); the
+ * role is explicit here, unlike public self-signup.
  */
-export interface RegisterAccountCommand {
+export interface CreateAccountCommand {
   email: string;
   plainPassword: string;
+  role: UserRoles;
 }
 
 @Injectable()
-export class RegisterAccountUseCase {
+export class CreateAccountUseCase {
   constructor(
     @Inject(I_ACCOUNT_REPOSITORY)
     private readonly accountRepo: IAccountRepository,
@@ -33,7 +33,7 @@ export class RegisterAccountUseCase {
     private readonly passwordHasher: IPasswordHasherPort,
   ) {}
 
-  async execute(command: RegisterAccountCommand): Promise<Account> {
+  async execute(command: CreateAccountCommand): Promise<Account> {
     const existing = await this.accountRepo.findByEmail(command.email);
     if (existing) {
       throw new AccountAlreadyExistsException(command.email);
@@ -43,9 +43,10 @@ export class RegisterAccountUseCase {
       randomUUID(),
       command.email,
       await this.passwordHasher.hash(command.plainPassword),
-      UserRoles.ATHLETE,
-      // An admin must activate the account before it can sign in.
-      AccountStatus.PENDING,
+      command.role,
+      // ACTIVE immediately: an admin creating an account *is* the approval, and
+      // the temporary password is handed over expecting it to work.
+      AccountStatus.ACTIVE,
     );
 
     await this.accountRepo.save(account);

@@ -1,4 +1,5 @@
 import {
+  Body,
   Controller,
   Get,
   HttpCode,
@@ -10,10 +11,12 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ActivateAccountUseCase } from '../application/use-cases/activate-account.use-case';
+import { CreateAccountUseCase } from '../application/use-cases/create-account.use-case';
 import { DeactivateAccountUseCase } from '../application/use-cases/deactivate-account.use-case';
 import { GetAccountsUseCase } from '../application/use-cases/get-accounts.use-case';
 import { UserRoles } from '../domain/enums/user-roles.enums';
 import { AccountsListRequestDto } from './dtos/accounts-list-request.dto';
+import { CreateAccountDto } from './dtos/create-account.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { Roles, RolesGuard } from './guards/roles.guard';
 
@@ -23,6 +26,7 @@ import { Roles, RolesGuard } from './guards/roles.guard';
 export class AccountController {
   constructor(
     private readonly getAccountsUseCase: GetAccountsUseCase,
+    private readonly createAccountUseCase: CreateAccountUseCase,
     private readonly activateAccountUseCase: ActivateAccountUseCase,
     private readonly deactivateAccountUseCase: DeactivateAccountUseCase,
   ) {}
@@ -43,6 +47,29 @@ export class AccountController {
       total,
       page,
       limit,
+    };
+  }
+
+  /**
+   * Admin-provisioned accounts — judges above all. Public signup lives at
+   * POST /auth/register and can only ever create a PENDING ATHLETE; this is
+   * the only route that accepts an explicit role, and the class-level guards
+   * restrict it to admins.
+   */
+  @Post()
+  @HttpCode(HttpStatus.CREATED)
+  async createAccount(@Body() dto: CreateAccountDto) {
+    const account = await this.createAccountUseCase.execute({
+      email: dto.email,
+      plainPassword: dto.password,
+      role: dto.role,
+    });
+
+    return {
+      id: account.id,
+      email: account.email,
+      role: account.role,
+      status: account.status,
     };
   }
 
