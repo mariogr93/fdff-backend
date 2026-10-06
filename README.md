@@ -1,11 +1,14 @@
+# fdff-backend
 
-psql -U db_user -d fdff_db
+Backend API for the FDFF WebApp (Federación Dominicana de Fisicoculturismo y Fitness) — athlete registration, competitions, categories, registration approvals and results. The web client lives in the separate `fdff-front` repository.
 
+Only the IAM slice (accounts and authentication) is implemented so far. See [CLAUDE.md](CLAUDE.md) for the project overview and [docs/PROJECT_CONTEXT.md](docs/PROJECT_CONTEXT.md) for the intended domain.
 
+Connect to the local database with:
 
-## Description
-
-Backend API for the FDFF WebApp (Federación Dominicana de Fisicoculturismo y Fitness).
+```bash
+docker compose exec db psql -U db_user -d fdff_db
+```
 
 ## Database setup
 
@@ -88,7 +91,7 @@ POST /api/accounts/deactivate/:accountId
 
 Activation accepts `PENDING` or `INACTIVE` and returns `409` if the account is already active; deactivation also clears the stored refresh token, so an open session cannot be extended.
 
-> **Docs drift:** `docs/README-IAM.md`, `docs/nestjs-auth-docs.md` and `docs/ai-auth-context.md` still describe the pre-refactor IAM module — the `APPROVED`/`REJECTED` statuses, `RegisterRoleGuard`, and `AccountNotApprovedException`, none of which exist any more. Trust this README and the code until those are refreshed.
+See [docs/README-IAM.md](docs/README-IAM.md) for the full IAM reference — flows, exception-to-status mapping, and how to protect a new endpoint. [CLAUDE.md](CLAUDE.md) is the entry point for AI assistants.
 
 ## Project setup
 
@@ -122,42 +125,18 @@ $ npm run test:e2e
 $ npm run test:cov
 ```
 
-## Deployment
+## Documentation
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+| Need | Read |
+| --- | --- |
+| Project overview, rules, conventions | [CLAUDE.md](CLAUDE.md) |
+| Domain, ubiquitous language, target architecture | [docs/PROJECT_CONTEXT.md](docs/PROJECT_CONTEXT.md) |
+| IAM reference: endpoints, flows, exceptions, env vars | [docs/README-IAM.md](docs/README-IAM.md) |
+| Pending data-model decisions | [docs/architecture/backend-implications.md](docs/architecture/backend-implications.md) |
+| What changed and why | [docs/nestjs-auth-changelog.md](docs/nestjs-auth-changelog.md) |
 
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+## Notes
 
-```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
-```
-
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
-
-## Resources
-
-Check out a few resources that may come in handy when working with NestJS:
-
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
-
-## Support
-
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+- `.env` and `keys/*.pem` are gitignored and must never be committed.
+- There is no CI yet; run `npm run build && npm run test && npm run lint` before pushing.
+- Framework reference: [NestJS docs](https://docs.nestjs.com).

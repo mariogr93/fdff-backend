@@ -2,12 +2,29 @@
 
 **Audience:** FDFF backend team  
 **Repository:** `fdff-backend`  
-**Last updated:** June 2026
+**Last updated:** October 2026
 
 This document records what changed in the IAM module during the authentication hardening initiative: new files, modified behavior, 
 why we added throttling and DTO validation, how dual-token issuance works, and how the HttpOnly cookie handshake is executed at the HTTP layer.
 
-For the full engineering source of truth (architecture, ports, guards, env matrix), see [`README-IAM.md`](./README-IAM.md).
+For the full engineering reference (architecture, ports, guards, env matrix), see [`README-IAM.md`](./README-IAM.md).
+
+---
+
+## 2026-10 — Architecture refactor
+
+Six architectural findings, fixed in order. Tests went from 3 to 81.
+
+| Area | Change |
+| --- | --- |
+| Schema | TypeORM migrations own the schema; `synchronize: false` everywhere, `migrationsRun: true` on boot. `001-initial-setup.sql` and its `docker-entrypoint-initdb.d` mount deleted. Giving `email`/`password_hash` their real `length(255)` revealed that `synchronize` wanted to DROP and re-ADD both columns — it would have destroyed every stored credential. |
+| Shared kernel | `DomainException` moved to `src/shared/domain/`; guards moved to `src/iam/presentation/guards/` and are exported by `IamModule`; `seed-admin.ts` moved to `src/scripts/` as a composition root. `src/shared/` no longer imports from any slice. |
+| Domain model | `Account` gained behaviour — `isActive`, `isLocked(now)`, `registerFailedLogin(policy, now)`, `activate`, `deactivate`, refresh-token helpers — all through one private `copyWith()`. Removed five hand-rolled eight-argument reconstructions. Lockout thresholds became an injected `LockoutPolicy`; a single `AuthPolicy` provider replaced config parsing duplicated across two use cases. |
+| Account lifecycle | Activation runs through the domain. `repo.activate()` (a raw SQL `UPDATE` that bypassed invariants and reported failure as a 500) deleted, along with the unbounded `findAll()`. `GET /accounts` is now genuinely paginated. `ParseUUIDPipe` turned a malformed id from a 500 into a 400, and the accounts email filter was fixed — it was annotated `@IsEmail()` while the repository does a partial `ILIKE`, so fragment search always returned 400. |
+| Authentication paths | `RegisterRoleGuard` deleted. It was a second hand-rolled auth path that duplicated `JwtStrategy` + `JwtAuthGuard` + `RolesGuard` and branched on `request.body` — which guards see *before* the `ValidationPipe`. Public signup and admin provisioning are now separate endpoints, and `RegisterAccountUseCase` has no role parameter at all, so it cannot produce a privileged account. `ForbiddenRoleAssignmentException` and `ITokenServicePort.verify()` became dead and were removed. |
+| Status enum | `APPROVED`/`REJECTED` → `ACTIVE`/`INACTIVE`, with `AccountNotApprovedException` replaced by `AccountNotActivatedException`. Deactivating a `PENDING` account is now how a registration is rejected. |
+
+Documentation was consolidated in the same pass: `nestjs-auth-docs.md` and `ai-auth-context.md` described this module two extra times and had drifted on every point above, so they were retired into `README-IAM.md`. `commit-plan-auth.md` was removed as spent. `CLAUDE.md` was added as the agent entry point.
 
 ---
 
