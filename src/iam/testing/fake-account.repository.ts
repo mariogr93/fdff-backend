@@ -1,7 +1,9 @@
-import { IAccountRepository } from '../application/ports/account.repository.interface';
+import {
+  AccountsPage,
+  IAccountRepository,
+} from '../application/ports/account.repository.interface';
 import { AccountsQuery } from '../application/ports/accounts-query';
 import { Account } from '../domain/account.model';
-import { AccountStatus } from '../domain/enums/account-status.enum';
 
 /**
  * In-memory IAccountRepository for use-case tests. Insertion-ordered: findMany
@@ -40,11 +42,7 @@ export class FakeAccountRepository implements IAccountRepository {
     return Promise.resolve();
   }
 
-  findAll(): Promise<Account[]> {
-    return Promise.resolve(this.list());
-  }
-
-  findMany(query: AccountsQuery): Promise<Account[]> {
+  findMany(query: AccountsQuery): Promise<AccountsPage> {
     const page = query.page ?? 1;
     const limit = query.limit ?? 10;
     const offset = (page - 1) * limit;
@@ -56,27 +54,10 @@ export class FakeAccountRepository implements IAccountRepository {
       return true;
     });
 
-    return Promise.resolve(matches.slice(offset, offset + limit));
-  }
-
-  activate(accountId: string): Promise<void> {
-    const account = this.accounts.get(accountId);
-    if (account) {
-      this.accounts.set(
-        accountId,
-        new Account(
-          account.id,
-          account.email,
-          account.passwordHash,
-          account.role,
-          AccountStatus.ACTIVE,
-          account.failedLoginAttempts,
-          account.lockedUntil,
-          account.refreshTokenHash,
-        ),
-      );
-    }
-    return Promise.resolve();
+    return Promise.resolve({
+      rows: matches.slice(offset, offset + limit),
+      total: matches.length,
+    });
   }
 
   private list(): Account[] {

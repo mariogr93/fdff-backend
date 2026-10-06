@@ -1,5 +1,7 @@
 import { AccountStatus } from './enums/account-status.enum';
 import { UserRoles } from './enums/user-roles.enums';
+import { AccountAlreadyActiveException } from './exceptions/account-already-active.exception';
+import { AccountAlreadyInactiveException } from './exceptions/account-already-inactive.exception';
 
 /**
  * How many failed logins lock an account, and for how long. These are an
@@ -71,6 +73,35 @@ export class Account {
     }
 
     return this.copyWith({ failedLoginAttempts: 0, lockedUntil: null });
+  }
+
+  /**
+   * Makes the account usable, whether it is newly registered (PENDING) or was
+   * disabled earlier (INACTIVE) — the admin accounts page toggles both ways.
+   */
+  activate(): Account {
+    if (this.status === AccountStatus.ACTIVE) {
+      throw new AccountAlreadyActiveException();
+    }
+
+    return this.copyWith({ status: AccountStatus.ACTIVE });
+  }
+
+  /**
+   * Disables the account and drops its refresh token, so an open session
+   * cannot be extended past the moment access was revoked. Deactivating a
+   * PENDING account is how a registration is rejected: the enum has no
+   * REJECTED value.
+   */
+  deactivate(): Account {
+    if (this.status === AccountStatus.INACTIVE) {
+      throw new AccountAlreadyInactiveException();
+    }
+
+    return this.copyWith({
+      status: AccountStatus.INACTIVE,
+      refreshTokenHash: null,
+    });
   }
 
   withRefreshToken(refreshTokenHash: string): Account {

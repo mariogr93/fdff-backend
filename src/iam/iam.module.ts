@@ -25,6 +25,7 @@ import { JwtStrategy } from './infrastructure/security/jwt.strategy';
 import { AuthController } from './presentation/auth.controller';
 import { AccountController } from './presentation/account.controller';
 import { ActivateAccountUseCase } from './application/use-cases/activate-account.use-case';
+import { DeactivateAccountUseCase } from './application/use-cases/deactivate-account.use-case';
 import { RolesGuard } from './presentation/guards/roles.guard';
 import { JwtAuthGuard } from './presentation/guards/jwt-auth.guard';
 import { LogoutAccountUseCase } from './application/use-cases/logout-account.use-case';
@@ -65,6 +66,7 @@ import { LogoutAccountUseCase } from './application/use-cases/logout-account.use
     RefreshAccountUseCase,
     GetAccountsUseCase,
     ActivateAccountUseCase,
+    DeactivateAccountUseCase,
     {
       // Every tunable auth value is resolved here, once. Previously
       // REFRESH_TOKEN_EXPIRES_DAYS was parsed separately in two use cases.

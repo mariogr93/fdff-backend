@@ -1,9 +1,10 @@
 import { Inject, Injectable } from '@nestjs/common';
 import {
+  type AccountsPage,
   type IAccountRepository,
   I_ACCOUNT_REPOSITORY,
 } from '../ports/account.repository.interface';
-import { Account } from '../../domain/account.model';
+import { AccountsQuery } from '../ports/accounts-query';
 
 @Injectable()
 export class GetAccountsUseCase {
@@ -12,7 +13,8 @@ export class GetAccountsUseCase {
     private readonly accountRepo: IAccountRepository,
   ) {}
 
-  async execute(): Promise<Account[]> {
-    return this.accountRepo.findAll();
+  /** Always paginated: the account list has no upper bound. */
+  execute(query: AccountsQuery = {}): Promise<AccountsPage> {
+    return this.accountRepo.findMany(query);
   }
 }

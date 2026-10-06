@@ -5,26 +5,30 @@ import {
   type IAccountRepository,
 } from '../ports/account.repository.interface';
 
-export interface ActivateAccountCommand {
+export interface DeactivateAccountCommand {
   accountId: string;
 }
 
 @Injectable()
-export class ActivateAccountUseCase {
+export class DeactivateAccountUseCase {
   constructor(
     @Inject(I_ACCOUNT_REPOSITORY)
     private readonly accountRepo: IAccountRepository,
   ) {}
 
-  async execute(command: ActivateAccountCommand): Promise<void> {
+  /**
+   * Rules that need more than the account itself — "you cannot deactivate
+   * yourself" or "the last ADMIN must remain" — belong here rather than in the
+   * entity, since they require the acting user or a repository count. Neither
+   * is enforced yet.
+   */
+  async execute(command: DeactivateAccountCommand): Promise<void> {
     const account = await this.accountRepo.findById(command.accountId);
 
     if (!account) {
       throw new AccountNotFoundException();
     }
 
-    // The invariant lives in the entity, so the transition is enforced the
-    // same way no matter which caller reaches it.
-    await this.accountRepo.update(account.activate());
+    await this.accountRepo.update(account.deactivate());
   }
 }

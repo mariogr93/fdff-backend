@@ -1,15 +1,16 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { FindOptionsWhere, ILike, Repository } from 'typeorm';
-import { IAccountRepository } from '../../application/ports/account.repository.interface';
+import {
+  AccountsPage,
+  IAccountRepository,
+} from '../../application/ports/account.repository.interface';
 import {
   AccountsQuery,
   AccountsSortOrder,
 } from '../../application/ports/accounts-query';
 import { Account } from '../../domain/account.model';
 import { AccountOrmEntity } from './account.orm-entity';
-import { AccountStatus } from '../../domain/enums/account-status.enum';
-import { DomainException } from '../../../shared/domain/domain.exception';
 
 @Injectable()
 export class TypeOrmAccountRepository implements IAccountRepository {
@@ -43,7 +44,7 @@ export class TypeOrmAccountRepository implements IAccountRepository {
     await this.repository.save(this.toOrm(account));
   }
 
-  async findMany(query: AccountsQuery): Promise<Account[]> {
+  async findMany(query: AccountsQuery): Promise<AccountsPage> {
     const page = query.page ?? 1;
     const limit = query.limit ?? 10;
 
@@ -58,28 +59,14 @@ export class TypeOrmAccountRepository implements IAccountRepository {
       where.status = query.status;
     }
 
-    const rows = await this.repository.find({
+    const [rows, total] = await this.repository.findAndCount({
       where,
       order: { createdAt: query.sortOrder ?? AccountsSortOrder.DESC },
       skip: (page - 1) * limit,
       take: limit,
     });
-    return rows.map((row) => this.toDomain(row));
-  }
 
-  async findAll(): Promise<Account[]> {
-    const rows = await this.repository.find();
-    return rows.map((row) => this.toDomain(row));
-  }
-
-  async activate(accountId: string): Promise<void> {
-    const result = await this.repository.update(accountId, {
-      status: AccountStatus.ACTIVE,
-    });
-    if (result.affected === 1) {
-      return;
-    }
-    throw new DomainException('Failed to activate account');
+    return { rows: rows.map((row) => this.toDomain(row)), total };
   }
 
   private toDomain(row: AccountOrmEntity): Account {

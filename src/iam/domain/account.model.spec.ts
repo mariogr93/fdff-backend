@@ -1,6 +1,8 @@
 import { makeAccount } from '../testing/account.fixture';
 import { DEFAULT_LOCKOUT_POLICY, type LockoutPolicy } from './account.model';
 import { AccountStatus } from './enums/account-status.enum';
+import { AccountAlreadyActiveException } from './exceptions/account-already-active.exception';
+import { AccountAlreadyInactiveException } from './exceptions/account-already-inactive.exception';
 
 const NOW = new Date('2026-10-05T12:00:00.000Z');
 const policy: LockoutPolicy = {
@@ -110,6 +112,69 @@ describe('Account', () => {
       });
 
       expect(account.clearLoginAttempts()).toBe(account);
+    });
+  });
+
+  describe('activate / deactivate transitions', () => {
+    it.each([AccountStatus.PENDING, AccountStatus.INACTIVE])(
+      'activates from %s',
+      (status) => {
+        expect(makeAccount({ status }).activate().status).toBe(
+          AccountStatus.ACTIVE,
+        );
+      },
+    );
+
+    it('rejects activating an already active account', () => {
+      expect(() =>
+        makeAccount({ status: AccountStatus.ACTIVE }).activate(),
+      ).toThrow(AccountAlreadyActiveException);
+    });
+
+    it.each([AccountStatus.ACTIVE, AccountStatus.PENDING])(
+      'deactivates from %s',
+      (status) => {
+        expect(makeAccount({ status }).deactivate().status).toBe(
+          AccountStatus.INACTIVE,
+        );
+      },
+    );
+
+    it('rejects deactivating an already inactive account', () => {
+      expect(() =>
+        makeAccount({ status: AccountStatus.INACTIVE }).deactivate(),
+      ).toThrow(AccountAlreadyInactiveException);
+    });
+
+    it('drops the refresh token on deactivation, so an open session cannot be extended', () => {
+      const account = makeAccount({
+        status: AccountStatus.ACTIVE,
+        refreshTokenHash: 'live-session',
+      });
+
+      expect(account.deactivate().refreshTokenHash).toBeNull();
+    });
+
+    it('leaves the refresh token alone on activation', () => {
+      const account = makeAccount({
+        status: AccountStatus.PENDING,
+        refreshTokenHash: 'existing',
+      });
+
+      expect(account.activate().refreshTokenHash).toBe('existing');
+    });
+
+    it('reports the conflict exceptions as 409', () => {
+      expect(new AccountAlreadyActiveException().statusCode).toBe(409);
+      expect(new AccountAlreadyInactiveException().statusCode).toBe(409);
+    });
+
+    it('does not mutate the original', () => {
+      const account = makeAccount({ status: AccountStatus.PENDING });
+
+      account.activate();
+
+      expect(account.status).toBe(AccountStatus.PENDING);
     });
   });
 

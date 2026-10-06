@@ -1,8 +1,8 @@
 import {
-  IsEmail,
   IsEnum,
   IsInt,
   IsOptional,
+  IsString,
   Max,
   MaxLength,
   Min,
@@ -13,8 +13,13 @@ import { AccountStatus } from '../../domain/enums/account-status.enum';
 import { UserRoles } from '../../domain/enums/user-roles.enums';
 
 export class AccountsListRequestDto {
+  /**
+   * A search fragment, not an address: the repository matches it with ILIKE
+   * '%...%'. Validating it as a full email would make partial search — the
+   * only reason this filter exists — impossible.
+   */
   @IsOptional()
-  @IsEmail()
+  @IsString()
   @MaxLength(100)
   email?: string;
 
