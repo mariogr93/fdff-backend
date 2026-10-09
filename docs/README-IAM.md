@@ -193,15 +193,18 @@ There must be **exactly one** `DomainException` class: `@Catch(DomainException)`
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `DB_HOST` / `DB_PORT` / `DB_USER` / `DB_PASSWORD` / `DB_NAME` | localhost / 5432 / postgres / — / fdff | Postgres connection |
+| `DB_HOST` / `DB_USER` / `DB_PASSWORD` / `DB_NAME` | **required**, no defaults | Postgres connection |
+| `DB_PORT` | `5432` | Postgres port |
 | `JWT_PRIVATE_KEY_PATH` / `JWT_PUBLIC_KEY_PATH` | — | RS256 PEM paths; `JWT_PRIVATE_KEY` / `JWT_PUBLIC_KEY` accept inline PEM instead |
 | `JWT_EXPIRES_IN` | `15m` | Access token lifetime |
 | `REFRESH_TOKEN_EXPIRES_DAYS` | `7` | Refresh cookie max-age |
 | `SALT_ROUNDS` | `10` | bcrypt cost |
-| `NODE_ENV` | — | `production` enables `secure` cookies |
+| `NODE_ENV` | **required** | `development`, `production` or `test`; `production` enables `secure` cookies |
 | `FRONTEND_URL` | `http://localhost:5173` | CORS origin (single value, not an allowlist) |
 | `PORT` | `3000` | HTTP port |
 | `ADMIN_EMAIL` / `ADMIN_PASSWORD` | — | `npm run db:seed` only |
+
+Startup validation (`src/shared/config/validate-env.ts`) refuses to boot, and the TypeORM CLI refuses to run, if a required variable is missing or if `DB_PORT`, `SALT_ROUNDS` or `REFRESH_TOKEN_EXPIRES_DAYS` is set but not a positive integer. The error names variables, never values.
 
 Password policy: 8–20 characters, `@IsPasswordStrong` (see `shared/validators/`), aligned with the React signup schema. The 20-character cap blocks passphrases and is worth revisiting.
 

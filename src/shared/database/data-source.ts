@@ -1,7 +1,9 @@
 import { config as loadEnv } from 'dotenv';
 import { DataSource } from 'typeorm';
+import { validateEnv } from '../config/validate-env';
 
 loadEnv();
+validateEnv(process.env);
 
 /**
  * Used by the TypeORM CLI only (migration:generate / run / revert). The running
@@ -12,11 +14,11 @@ loadEnv();
  */
 export const AppDataSource = new DataSource({
   type: 'postgres',
-  host: process.env.DB_HOST ?? 'localhost',
+  host: process.env.DB_HOST,
   port: parseInt(process.env.DB_PORT ?? '5432', 10),
-  username: process.env.DB_USER ?? 'postgres',
-  password: process.env.DB_PASSWORD ?? 'postgres_password',
-  database: process.env.DB_NAME ?? 'fdff',
+  username: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  database: process.env.DB_NAME,
   entities: [__dirname + '/../../**/*.orm-entity.{ts,js}'],
   migrations: [__dirname + '/migrations/*.{ts,js}'],
   migrationsTableName: 'migrations',
