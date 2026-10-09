@@ -39,9 +39,11 @@ RUN apk add --no-cache python3 make g++
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 
-COPY --from=builder /app/dist ./dist
+COPY --chown=node:node --from=builder /app/dist ./dist
 
 RUN apk del python3 make g++
+
+USER node
 
 EXPOSE 3000
 

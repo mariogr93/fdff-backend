@@ -138,5 +138,6 @@ $ npm run test:cov
 ## Notes
 
 - `.env` and `keys/*.pem` are gitignored and must never be committed.
+- The production container runs as the non-root `node` user (uid 1000). The mounted `keys/*.pem` files must be readable by it (on Linux, e.g. `chmod 644` on the public key and `chown 1000` on the private key).
 - There is no CI yet; run `npm run build && npm run test && npm run lint` before pushing.
 - Framework reference: [NestJS docs](https://docs.nestjs.com).

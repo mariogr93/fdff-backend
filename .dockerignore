@@ -1,0 +1,9 @@
+.env
+.env.*
+!.env.example
+keys/
+node_modules/
+dist/
+.git/
+coverage/
+*.md
