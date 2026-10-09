@@ -81,6 +81,8 @@ import { LogoutAccountUseCase } from './application/use-cases/logout-account.use
         return {
           refreshTokenTtlMs: refreshDays * 24 * 60 * 60 * 1000,
           lockout: DEFAULT_LOCKOUT_POLICY,
+          secureCookies:
+            config.getOrThrow<string>('NODE_ENV') !== 'development',
         };
       },
     },

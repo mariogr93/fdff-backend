@@ -4,11 +4,11 @@ export const REFRESH_TOKEN_COOKIE = 'refresh_token';
 
 export function buildRefreshTokenCookieOptions(
   maxAgeMs: number,
-  isProduction: boolean,
+  secure: boolean,
 ): CookieOptions {
   return {
     httpOnly: true,
-    secure: isProduction,
+    secure,
     sameSite: 'strict',
     path: '/api/auth',
     maxAge: maxAgeMs,
@@ -16,11 +16,11 @@ export function buildRefreshTokenCookieOptions(
 }
 
 export function buildClearRefreshTokenCookieOptions(
-  isProduction: boolean,
+  secure: boolean,
 ): CookieOptions {
   return {
     httpOnly: true,
-    secure: isProduction,
+    secure,
     sameSite: 'strict',
     path: '/api/auth',
   };

@@ -9,7 +9,6 @@ import {
   Res,
   UnauthorizedException,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { Throttle } from '@nestjs/throttler';
 import {
   type AuthPolicy,
@@ -41,7 +40,6 @@ export class AuthController {
     private readonly loginAccount: LoginAccountUseCase,
     private readonly logoutAccount: LogoutAccountUseCase,
     private readonly refreshAccount: RefreshAccountUseCase,
-    private readonly config: ConfigService,
     @Inject(I_AUTH_POLICY)
     private readonly policy: AuthPolicy,
   ) {}
@@ -76,14 +74,12 @@ export class AuthController {
       plainPassword: dto.password,
     });
 
-    const isProduction = this.config.get<string>('NODE_ENV') === 'production';
-
     res.cookie(
       REFRESH_TOKEN_COOKIE,
       result.refreshToken,
       buildRefreshTokenCookieOptions(
         this.policy.refreshTokenTtlMs,
-        isProduction,
+        this.policy.secureCookies,
       ),
     );
 
@@ -100,10 +96,9 @@ export class AuthController {
   async logout(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
     await this.logoutAccount.execute(readRefreshCookie(req));
 
-    const isProduction = this.config.get<string>('NODE_ENV') === 'production';
     res.clearCookie(
       REFRESH_TOKEN_COOKIE,
-      buildClearRefreshTokenCookieOptions(isProduction),
+      buildClearRefreshTokenCookieOptions(this.policy.secureCookies),
     );
 
     return;
@@ -122,14 +117,12 @@ export class AuthController {
     }
 
     const result = await this.refreshAccount.execute(plainRefreshToken);
-    const isProduction = this.config.get<string>('NODE_ENV') === 'production';
-
     res.cookie(
       REFRESH_TOKEN_COOKIE,
       result.refreshToken,
       buildRefreshTokenCookieOptions(
         this.policy.refreshTokenTtlMs,
-        isProduction,
+        this.policy.secureCookies,
       ),
     );
 

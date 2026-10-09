@@ -199,7 +199,7 @@ There must be **exactly one** `DomainException` class: `@Catch(DomainException)`
 | `JWT_EXPIRES_IN` | `15m` | Access token lifetime |
 | `REFRESH_TOKEN_EXPIRES_DAYS` | `7` | Refresh cookie max-age |
 | `SALT_ROUNDS` | `10` | bcrypt cost |
-| `NODE_ENV` | **required** | `development`, `production` or `test`; `production` enables `secure` cookies |
+| `NODE_ENV` | **required** | `development`, `production` or `test`; refresh cookie is `Secure` in every environment except `development` |
 | `FRONTEND_URL` | `http://localhost:5173` | CORS origin (single value, not an allowlist) |
 | `PORT` | `3000` | HTTP port |
 | `ADMIN_EMAIL` / `ADMIN_PASSWORD` | — | `npm run db:seed` only |

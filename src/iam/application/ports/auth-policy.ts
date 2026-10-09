@@ -13,4 +13,6 @@ export interface AuthPolicy {
   /** Cookie max-age and the lifetime of a stored refresh token hash. */
   refreshTokenTtlMs: number;
   lockout: LockoutPolicy;
+  /** Refresh cookie is sent over HTTPS only. Fail-closed: off only in development. */
+  secureCookies: boolean;
 }

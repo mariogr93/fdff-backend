@@ -12,6 +12,7 @@ import { LoginAccountUseCase } from './login-account.use-case';
 const policy: AuthPolicy = {
   refreshTokenTtlMs: 7 * 24 * 60 * 60 * 1000,
   lockout: { maxFailedAttempts: 3, lockoutDurationMs: 60_000 },
+  secureCookies: true,
 };
 
 const build = (accounts = [makeAccount()]) => {
