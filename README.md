@@ -18,6 +18,8 @@ PostgreSQL runs via Docker Compose:
 docker compose up -d db
 ```
 
+Postgres is published on `127.0.0.1` only, so it is reachable from your machine but not from the network.
+
 Copy `.env.example` to `.env` and adjust `DB_*` values if needed (defaults match `docker-compose.yml`).
 
 - **Schema:** owned by TypeORM migrations in [src/shared/database/migrations/](src/shared/database/migrations/). The CLI connection lives in [src/shared/database/data-source.ts](src/shared/database/data-source.ts); the running app uses [src/shared/database/database.module.ts](src/shared/database/database.module.ts). `synchronize` is **off in every environment** — the entity decorators are the source of truth for *generating* migrations, never for mutating a live database.

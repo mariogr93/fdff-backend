@@ -3,14 +3,13 @@ services:
     image: postgres:15-alpine
     container_name: fdff_postgres
     restart: always
-    env_file:
-      - .env
     environment:
       POSTGRES_USER: ${DB_USER}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
       POSTGRES_DB: ${DB_NAME}
     ports:
-      - '${DB_PORT:-5432}:5432'
+      # Localhost only: Postgres must not be reachable from other machines.
+      - '127.0.0.1:${DB_PORT:-5432}:5432'
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -32,6 +31,8 @@ services:
     env_file:
       - .env
     environment:
+      # Wins over env_file, so a local NODE_ENV=development in .env cannot leak in.
+      NODE_ENV: production
       # Inside Docker, the database host is the compose service name, not localhost.
       DB_HOST: db
       # Postgres always listens on 5432 inside the container; DB_PORT in .env is the host-mapped port.
