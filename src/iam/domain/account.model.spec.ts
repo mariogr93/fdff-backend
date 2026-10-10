@@ -150,9 +150,13 @@ describe('Account', () => {
       const account = makeAccount({
         status: AccountStatus.ACTIVE,
         refreshTokenHash: 'live-session',
+        refreshTokenExpiresAt: new Date('2026-01-02T12:00:00Z'),
       });
 
-      expect(account.deactivate().refreshTokenHash).toBeNull();
+      const next = account.deactivate();
+
+      expect(next.refreshTokenHash).toBeNull();
+      expect(next.refreshTokenExpiresAt).toBeNull();
     });
 
     it('leaves the refresh token alone on activation', () => {
@@ -179,18 +183,62 @@ describe('Account', () => {
   });
 
   describe('refresh token', () => {
-    it('stores a hash', () => {
+    const now = new Date('2026-01-01T12:00:00Z');
+    const later = new Date('2026-01-02T12:00:00Z');
+    const earlier = new Date('2025-12-31T12:00:00Z');
+
+    it('stores a hash and its expiry', () => {
       const next = makeAccount({ refreshTokenHash: null }).withRefreshToken(
         'hash',
+        later,
       );
       expect(next.refreshTokenHash).toBe('hash');
+      expect(next.refreshTokenExpiresAt).toEqual(later);
     });
 
-    it('clears a hash back to null', () => {
+    it('clears the hash and the expiry back to null', () => {
       const next = makeAccount({
         refreshTokenHash: 'hash',
+        refreshTokenExpiresAt: later,
       }).clearRefreshToken();
       expect(next.refreshTokenHash).toBeNull();
+      expect(next.refreshTokenExpiresAt).toBeNull();
+    });
+
+    describe('hasLiveRefreshToken', () => {
+      it('is true before the expiry', () => {
+        const account = makeAccount({
+          refreshTokenHash: 'hash',
+          refreshTokenExpiresAt: later,
+        });
+        expect(account.hasLiveRefreshToken(now)).toBe(true);
+      });
+
+      it('is false at and after the expiry', () => {
+        const account = makeAccount({
+          refreshTokenHash: 'hash',
+          refreshTokenExpiresAt: later,
+        });
+        expect(account.hasLiveRefreshToken(later)).toBe(false);
+        expect(
+          makeAccount({
+            refreshTokenHash: 'hash',
+            refreshTokenExpiresAt: earlier,
+          }).hasLiveRefreshToken(now),
+        ).toBe(false);
+      });
+
+      it('is false for a hash with no expiry, so old sessions fail closed', () => {
+        const account = makeAccount({
+          refreshTokenHash: 'hash',
+          refreshTokenExpiresAt: null,
+        });
+        expect(account.hasLiveRefreshToken(now)).toBe(false);
+      });
+
+      it('is false when there is no hash', () => {
+        expect(makeAccount().hasLiveRefreshToken(now)).toBe(false);
+      });
     });
 
     it('chains with clearLoginAttempts', () => {
@@ -199,7 +247,9 @@ describe('Account', () => {
         refreshTokenHash: null,
       });
 
-      const next = account.clearLoginAttempts().withRefreshToken('hash');
+      const next = account
+        .clearLoginAttempts()
+        .withRefreshToken('hash', new Date('2026-01-02T12:00:00Z'));
 
       expect(next.failedLoginAttempts).toBe(0);
       expect(next.refreshTokenHash).toBe('hash');

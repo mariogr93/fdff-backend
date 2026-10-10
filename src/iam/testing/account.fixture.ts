@@ -11,6 +11,7 @@ export interface AccountOverrides {
   failedLoginAttempts?: number;
   lockedUntil?: Date | null;
   refreshTokenHash?: string | null;
+  refreshTokenExpiresAt?: Date | null;
 }
 
 /**
@@ -27,5 +28,6 @@ export function makeAccount(overrides: AccountOverrides = {}): Account {
     overrides.failedLoginAttempts ?? 0,
     overrides.lockedUntil ?? null,
     overrides.refreshTokenHash ?? null,
+    overrides.refreshTokenExpiresAt ?? null,
   );
 }

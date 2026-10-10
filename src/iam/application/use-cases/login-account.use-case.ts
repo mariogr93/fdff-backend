@@ -96,7 +96,10 @@ export class LoginAccountUseCase {
     await this.accountRepo.update(
       account
         .clearLoginAttempts()
-        .withRefreshToken(this.refreshTokens.hash(refreshToken)),
+        .withRefreshToken(
+          this.refreshTokens.hash(refreshToken),
+          new Date(now.getTime() + this.policy.refreshTokenTtlMs),
+        ),
     );
 
     const { accessToken } = await this.tokenService.sign({

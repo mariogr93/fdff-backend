@@ -54,7 +54,9 @@ describe('LoginAccountUseCase', () => {
     const account = makeAccount({ status: AccountStatus.ACTIVE });
     const { useCase, repo, sign } = build([account]);
 
+    const before = Date.now();
     const result = await useCase.execute(login());
+    const after = Date.now();
 
     expect(result.accessToken).toBe('access-token');
     expect(result.accountId).toBe(account.id);
@@ -69,6 +71,11 @@ describe('LoginAccountUseCase', () => {
     const stored = await repo.findById(account.id);
     expect(stored?.refreshTokenHash).toBeTruthy();
     expect(stored?.refreshTokenHash).not.toBe(result.refreshToken);
+
+    // The server-side expiry follows the configured lifetime.
+    const expiresAt = stored?.refreshTokenExpiresAt?.getTime() ?? 0;
+    expect(expiresAt).toBeGreaterThanOrEqual(before + policy.refreshTokenTtlMs);
+    expect(expiresAt).toBeLessThanOrEqual(after + policy.refreshTokenTtlMs);
   });
 
   it('rejects an unknown email without revealing that it is unknown', async () => {

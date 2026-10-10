@@ -1,5 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { InvalidRefreshTokenException } from '../../domain/exceptions/invalid-refresh-token.exception';
+import { type AuthPolicy, I_AUTH_POLICY } from '../ports/auth-policy';
 import {
   I_ACCOUNT_REPOSITORY,
   type IAccountRepository,
@@ -29,6 +30,8 @@ export class RefreshAccountUseCase {
     private readonly tokenService: ITokenServicePort,
     @Inject(I_REFRESH_TOKEN_SERVICE)
     private readonly refreshTokens: IRefreshTokenServicePort,
+    @Inject(I_AUTH_POLICY)
+    private readonly policy: AuthPolicy,
   ) {}
 
   async execute(plainRefreshToken: string): Promise<IRefreshResult> {
@@ -43,9 +46,13 @@ export class RefreshAccountUseCase {
     }
 
     const newRefreshToken = this.refreshTokens.generate();
+    const expiresAt = new Date(Date.now() + this.policy.refreshTokenTtlMs);
 
     await this.accountRepo.update(
-      account.withRefreshToken(this.refreshTokens.hash(newRefreshToken)),
+      account.withRefreshToken(
+        this.refreshTokens.hash(newRefreshToken),
+        expiresAt,
+      ),
     );
 
     const { accessToken } = await this.tokenService.sign({

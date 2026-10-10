@@ -79,6 +79,7 @@ export class TypeOrmAccountRepository implements IAccountRepository {
       row.failedLoginAttempts,
       row.lockedUntil,
       row.refreshTokenHash,
+      row.refreshTokenExpiresAt,
     );
   }
 
@@ -92,6 +93,7 @@ export class TypeOrmAccountRepository implements IAccountRepository {
     row.failedLoginAttempts = account.failedLoginAttempts;
     row.lockedUntil = account.lockedUntil;
     row.refreshTokenHash = account.refreshTokenHash;
+    row.refreshTokenExpiresAt = account.refreshTokenExpiresAt;
     return row;
   }
 }

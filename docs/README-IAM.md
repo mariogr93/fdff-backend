@@ -62,7 +62,7 @@ A global `ThrottlerGuard` adds an app-wide 100 req/min (`app.module.ts`).
 | Token | Lifetime | Transport | Storage |
 | --- | --- | --- | --- |
 | Access | `JWT_EXPIRES_IN` (default `15m`) | JSON response body | in-memory on the client only |
-| Refresh | `REFRESH_TOKEN_EXPIRES_DAYS` (default 7) | `HttpOnly` cookie | SHA-256 hash in `accounts.refresh_token_hash` |
+| Refresh | `REFRESH_TOKEN_EXPIRES_DAYS` (default 1) | `HttpOnly` cookie | SHA-256 hash in `accounts.refresh_token_hash`, expiry in `accounts.refresh_token_expires_at` |
 
 - Access tokens are **RS256**, signed with the private key; the payload is identity-only — `{ sub, email }`. **Role is deliberately not a claim.** `RolesGuard` reads the freshly-loaded `Account`, so a demoted or deactivated admin loses access on the next request instead of at token expiry. Do not "optimise" that database read away.
 - The refresh token is an opaque 64-char random string. Only its hash is stored, so a database leak does not yield usable tokens.
@@ -83,8 +83,9 @@ A global `ThrottlerGuard` adds an app-wide 100 req/min (`app.module.ts`).
 | `failedLoginAttempts` | lockout counter |
 | `lockedUntil` | nullable |
 | `refreshTokenHash` | nullable until first login; nulled on logout and deactivation |
+| `refreshTokenExpiresAt` | when the stored refresh token stops being valid; nulled together with the hash. A hash with no expiry counts as expired |
 
-**Behaviour:** `isActive()`, `isLocked(now)`, `registerFailedLogin(policy, now)`, `clearLoginAttempts()`, `activate()`, `deactivate()`, `withRefreshToken(hash)`, `clearRefreshToken()`. All route through one private `copyWith()`, which is the only place an `Account` is rebuilt.
+**Behaviour:** `isActive()`, `isLocked(now)`, `registerFailedLogin(policy, now)`, `clearLoginAttempts()`, `activate()`, `deactivate()`, `withRefreshToken(hash, expiresAt)`, `clearRefreshToken()`, `hasLiveRefreshToken(now)`. All route through one private `copyWith()`, which is the only place an `Account` is rebuilt.
 
 - `now` is always a **parameter**, never `new Date()` inside the entity, so lockout is testable without faking time.
 - Lockout thresholds arrive as a `LockoutPolicy` argument (`DEFAULT_LOCKOUT_POLICY`: 5 attempts, 15 minutes). They are an operations lever, not an invariant, and the entity must never read configuration.
@@ -96,7 +97,7 @@ A global `ThrottlerGuard` adds an app-wide 100 req/min (`app.module.ts`).
 | `PENDING` → `ACTIVE` | allowed (approve a registration) |
 | `INACTIVE` → `ACTIVE` | allowed (reinstate — the admin page is a toggle) |
 | `ACTIVE` → `ACTIVE` | `AccountAlreadyActiveException` → `409` |
-| `ACTIVE` / `PENDING` → `INACTIVE` | allowed; also clears `refreshTokenHash` |
+| `ACTIVE` / `PENDING` → `INACTIVE` | allowed; also clears `refreshTokenHash` and `refreshTokenExpiresAt` |
 | `INACTIVE` → `INACTIVE` | `AccountAlreadyInactiveException` → `409` |
 
 Deactivating a `PENDING` account is how a registration is rejected — the enum has no `REJECTED` value.
@@ -142,7 +143,7 @@ invalid?                  → registerFailedLogin → update → InvalidCredenti
   ↓
 isActive()?               → clearLoginAttempts → update → AccountNotActivated (401)
   ↓
-generate refresh token → clearLoginAttempts().withRefreshToken(hash) → update
+generate refresh token → clearLoginAttempts().withRefreshToken(hash, now + ttl) → update
   ↓
 sign RS256 access token
   ↓
@@ -198,7 +199,7 @@ There must be **exactly one** `DomainException` class: `@Catch(DomainException)`
 | `DB_PORT` | `5432` | Postgres port |
 | `JWT_PRIVATE_KEY_PATH` / `JWT_PUBLIC_KEY_PATH` | — | RS256 PEM paths; `JWT_PRIVATE_KEY` / `JWT_PUBLIC_KEY` accept inline PEM instead |
 | `JWT_EXPIRES_IN` | `15m` | Access token lifetime |
-| `REFRESH_TOKEN_EXPIRES_DAYS` | `7` | Refresh cookie max-age |
+| `REFRESH_TOKEN_EXPIRES_DAYS` | `1` | Days a refresh token stays valid (cookie max-age; also the server-side expiry once enforced). Sliding: each refresh restarts it |
 | `SALT_ROUNDS` | `10` | bcrypt cost |
 | `NODE_ENV` | **required** | `development`, `production` or `test`; refresh cookie is `Secure` in every environment except `development` |
 | `FRONTEND_URL` | `http://localhost:5173` | CORS origin (single value, not an allowlist) |

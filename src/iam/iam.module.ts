@@ -76,7 +76,7 @@ import { LogoutAccountUseCase } from './application/use-cases/logout-account.use
       inject: [ConfigService],
       useFactory: (config: ConfigService): AuthPolicy => {
         const refreshDays = parseInt(
-          config.get<string>('REFRESH_TOKEN_EXPIRES_DAYS', '7'),
+          config.get<string>('REFRESH_TOKEN_EXPIRES_DAYS', '1'),
           10,
         );
 

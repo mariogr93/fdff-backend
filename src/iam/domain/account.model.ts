@@ -27,6 +27,7 @@ interface AccountState {
   failedLoginAttempts: number;
   lockedUntil: Date | null;
   refreshTokenHash: string | null;
+  refreshTokenExpiresAt: Date | null;
 }
 
 export class Account {
@@ -39,6 +40,7 @@ export class Account {
     public readonly failedLoginAttempts: number = 0,
     public readonly lockedUntil: Date | null = null,
     public readonly refreshTokenHash: string | null = null,
+    public readonly refreshTokenExpiresAt: Date | null = null,
   ) {}
 
   /**
@@ -101,15 +103,31 @@ export class Account {
     return this.copyWith({
       status: AccountStatus.INACTIVE,
       refreshTokenHash: null,
+      refreshTokenExpiresAt: null,
     });
   }
 
-  withRefreshToken(refreshTokenHash: string): Account {
-    return this.copyWith({ refreshTokenHash });
+  withRefreshToken(refreshTokenHash: string, expiresAt: Date): Account {
+    return this.copyWith({
+      refreshTokenHash,
+      refreshTokenExpiresAt: expiresAt,
+    });
   }
 
   clearRefreshToken(): Account {
-    return this.copyWith({ refreshTokenHash: null });
+    return this.copyWith({
+      refreshTokenHash: null,
+      refreshTokenExpiresAt: null,
+    });
+  }
+
+  /** A stored token with no expiry date counts as expired: fail closed. */
+  hasLiveRefreshToken(now: Date): boolean {
+    return (
+      this.refreshTokenHash !== null &&
+      this.refreshTokenExpiresAt !== null &&
+      this.refreshTokenExpiresAt > now
+    );
   }
 
   /**
@@ -126,6 +144,7 @@ export class Account {
       failedLoginAttempts: this.failedLoginAttempts,
       lockedUntil: this.lockedUntil,
       refreshTokenHash: this.refreshTokenHash,
+      refreshTokenExpiresAt: this.refreshTokenExpiresAt,
       ...changes,
     };
 
@@ -138,6 +157,7 @@ export class Account {
       next.failedLoginAttempts,
       next.lockedUntil,
       next.refreshTokenHash,
+      next.refreshTokenExpiresAt,
     );
   }
 }

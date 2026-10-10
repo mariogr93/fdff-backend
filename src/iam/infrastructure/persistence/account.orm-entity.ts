@@ -45,6 +45,13 @@ export class AccountOrmEntity {
   })
   refreshTokenHash: string | null;
 
+  @Column({
+    name: 'refresh_token_expires_at',
+    type: 'timestamptz',
+    nullable: true,
+  })
+  refreshTokenExpiresAt: Date | null;
+
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;
 
