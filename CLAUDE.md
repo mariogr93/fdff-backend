@@ -87,11 +87,11 @@ src/
 └── iam/                     # Accounts and authentication
     ├── domain/              # account.model.ts, enums/, exceptions/
     ├── application/
-    │   ├── ports/           # repository + hasher + token + auth-policy
+    │   ├── ports/           # repository + hasher + token + refresh-token + auth-policy
     │   └── use-cases/
     ├── infrastructure/
     │   ├── persistence/     # *.orm-entity.ts, typeorm-account.repository.ts
-    │   └── security/        # JWT, bcrypt, cookies, refresh-token utils
+    │   └── security/        # JWT, bcrypt, cookies, refresh tokens
     ├── presentation/        # controllers, dtos/, guards/
     ├── testing/             # makeAccount fixture + FakeAccountRepository
     └── iam.module.ts

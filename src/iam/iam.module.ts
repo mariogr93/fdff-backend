@@ -10,6 +10,7 @@ import {
 } from './application/ports/auth-policy';
 import { DEFAULT_LOCKOUT_POLICY } from './domain/account.model';
 import { I_PASSWORD_HASHER } from './application/ports/password-hasher.port';
+import { I_REFRESH_TOKEN_SERVICE } from './application/ports/refresh-token.port';
 import { I_TOKEN_SERVICE } from './application/ports/token.service.port';
 import { GetAccountsUseCase } from './application/use-cases/get-accounts.use-case';
 import { LoginAccountUseCase } from './application/use-cases/login-account.use-case';
@@ -20,6 +21,7 @@ import { TypeOrmAccountRepository } from './infrastructure/persistence/typeorm-a
 import { BcryptPasswordHasher } from './infrastructure/security/bcrypt-password-hasher';
 import { loadJwtKeyPair } from './infrastructure/security/jwt-key.util';
 import { JwtTokenService } from './infrastructure/security/jwt-token.service';
+import { RefreshTokenService } from './infrastructure/security/refresh-token.service';
 import { JwtStrategy } from './infrastructure/security/jwt.strategy';
 import { AuthController } from './presentation/auth.controller';
 import { AccountController } from './presentation/account.controller';
@@ -97,6 +99,10 @@ import { LogoutAccountUseCase } from './application/use-cases/logout-account.use
     {
       provide: I_TOKEN_SERVICE,
       useClass: JwtTokenService,
+    },
+    {
+      provide: I_REFRESH_TOKEN_SERVICE,
+      useClass: RefreshTokenService,
     },
   ],
   // Authorization belongs to IAM, so the guards are published here. Any future

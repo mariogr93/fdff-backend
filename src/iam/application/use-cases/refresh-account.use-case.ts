@@ -1,13 +1,13 @@
 import { Inject, Injectable } from '@nestjs/common';
-import {
-  generateRefreshToken,
-  hashRefreshToken,
-} from '../../infrastructure/security/refresh-token.util';
 import { InvalidRefreshTokenException } from '../../domain/exceptions/invalid-refresh-token.exception';
 import {
   I_ACCOUNT_REPOSITORY,
   type IAccountRepository,
 } from '../ports/account.repository.interface';
+import {
+  I_REFRESH_TOKEN_SERVICE,
+  type IRefreshTokenServicePort,
+} from '../ports/refresh-token.port';
 import {
   type ITokenServicePort,
   I_TOKEN_SERVICE,
@@ -27,10 +27,12 @@ export class RefreshAccountUseCase {
     private readonly accountRepo: IAccountRepository,
     @Inject(I_TOKEN_SERVICE)
     private readonly tokenService: ITokenServicePort,
+    @Inject(I_REFRESH_TOKEN_SERVICE)
+    private readonly refreshTokens: IRefreshTokenServicePort,
   ) {}
 
   async execute(plainRefreshToken: string): Promise<IRefreshResult> {
-    const tokenHash = hashRefreshToken(plainRefreshToken);
+    const tokenHash = this.refreshTokens.hash(plainRefreshToken);
     const account = await this.accountRepo.findByRefreshTokenHash(tokenHash);
 
     // One opaque error for every failure. Unlike login, this must not
@@ -40,10 +42,10 @@ export class RefreshAccountUseCase {
       throw new InvalidRefreshTokenException();
     }
 
-    const newRefreshToken = generateRefreshToken();
+    const newRefreshToken = this.refreshTokens.generate();
 
     await this.accountRepo.update(
-      account.withRefreshToken(hashRefreshToken(newRefreshToken)),
+      account.withRefreshToken(this.refreshTokens.hash(newRefreshToken)),
     );
 
     const { accessToken } = await this.tokenService.sign({

@@ -2,11 +2,11 @@ import { Inject, Injectable } from '@nestjs/common';
 import { AccountLockedException } from '../../domain/exceptions/account-locked.exception';
 import { AccountNotActivatedException } from '../../domain/exceptions/account-not-activated.exception';
 import { InvalidCredentialsException } from '../../domain/exceptions/invalid-credentials.exception';
-import {
-  generateRefreshToken,
-  hashRefreshToken,
-} from '../../infrastructure/security/refresh-token.util';
 import { type AuthPolicy, I_AUTH_POLICY } from '../ports/auth-policy';
+import {
+  I_REFRESH_TOKEN_SERVICE,
+  type IRefreshTokenServicePort,
+} from '../ports/refresh-token.port';
 import {
   I_ACCOUNT_REPOSITORY,
   type IAccountRepository,
@@ -48,6 +48,8 @@ export class LoginAccountUseCase {
     private readonly tokenService: ITokenServicePort,
     @Inject(I_AUTH_POLICY)
     private readonly policy: AuthPolicy,
+    @Inject(I_REFRESH_TOKEN_SERVICE)
+    private readonly refreshTokens: IRefreshTokenServicePort,
   ) {}
 
   async execute(command: ILoginCommand): Promise<IAuthResult> {
@@ -90,11 +92,11 @@ export class LoginAccountUseCase {
       throw new AccountNotActivatedException();
     }
 
-    const refreshToken = generateRefreshToken();
+    const refreshToken = this.refreshTokens.generate();
     await this.accountRepo.update(
       account
         .clearLoginAttempts()
-        .withRefreshToken(hashRefreshToken(refreshToken)),
+        .withRefreshToken(this.refreshTokens.hash(refreshToken)),
     );
 
     const { accessToken } = await this.tokenService.sign({

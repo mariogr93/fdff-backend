@@ -108,6 +108,7 @@ Deactivating a `PENDING` account is how a registration is rejected — the enum 
 | `IAccountRepository` | `'I_ACCOUNT_REPOSITORY'` | `TypeOrmAccountRepository` |
 | `IPasswordHasherPort` | `Symbol('I_PASSWORD_HASHER')` | `BcryptPasswordHasher` |
 | `ITokenServicePort` | `Symbol('I_TOKEN_SERVICE')` | `JwtTokenService` |
+| `IRefreshTokenServicePort` | `Symbol('I_REFRESH_TOKEN_SERVICE')` | `RefreshTokenService` |
 | `AuthPolicy` | `Symbol('I_AUTH_POLICY')` | factory in `iam.module.ts` |
 
 Repository methods: `findById`, `findByEmail`, `findByRefreshTokenHash`, `save`, `update`, `findMany(query) → { rows, total }`.
@@ -248,12 +249,13 @@ src/iam/
 │   └── exceptions/                   # 9 DomainException subclasses
 ├── application/
 │   ├── ports/{account.repository.interface,accounts-query,
-│   │           password-hasher.port,token.service.port,auth-policy}
+│   │           password-hasher.port,token.service.port,
+│   │           refresh-token.port,auth-policy}
 │   └── use-cases/                    # 8 use cases
 ├── infrastructure/
 │   ├── persistence/{account.orm-entity,typeorm-account.repository}
 │   └── security/{jwt.strategy,jwt-token.service,jwt-key.util,
-│                 bcrypt-password-hasher,refresh-token.util,auth-cookie.util}
+│                 bcrypt-password-hasher,refresh-token.service,auth-cookie.util}
 ├── presentation/
 │   ├── {auth,account}.controller.ts
 │   ├── dtos/{register-account,create-account,login,accounts-list-request}

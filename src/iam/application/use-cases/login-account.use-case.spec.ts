@@ -7,6 +7,7 @@ import { FakeAccountRepository } from '../../testing/fake-account.repository';
 import type { AuthPolicy } from '../ports/auth-policy';
 import type { IPasswordHasherPort } from '../ports/password-hasher.port';
 import type { ITokenServicePort } from '../ports/token.service.port';
+import { FakeRefreshTokenService } from '../../testing/fake-refresh-token.service';
 import { LoginAccountUseCase } from './login-account.use-case';
 
 const policy: AuthPolicy = {
@@ -37,6 +38,7 @@ const build = (accounts = [makeAccount()]) => {
     passwordHasher,
     tokenService,
     policy,
+    new FakeRefreshTokenService(),
   );
 
   return { useCase, repo, compare, sign };
