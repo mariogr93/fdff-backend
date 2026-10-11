@@ -62,6 +62,60 @@ describe('Account', () => {
       expect(next.isLocked(NOW)).toBe(true);
     });
 
+    it('starts counting again once a lock has expired', () => {
+      const expired = new Date(NOW.getTime() - 1_000);
+      const account = makeAccount({
+        failedLoginAttempts: policy.maxFailedAttempts,
+        lockedUntil: expired,
+      });
+
+      const next = account.registerFailedLogin(policy, NOW);
+
+      expect(next.failedLoginAttempts).toBe(1);
+      expect(next.lockedUntil).toBeNull();
+      expect(next.isLocked(NOW)).toBe(false);
+    });
+
+    it('treats a lock that ends exactly now as expired', () => {
+      const account = makeAccount({
+        failedLoginAttempts: policy.maxFailedAttempts,
+        lockedUntil: NOW,
+      });
+
+      expect(account.registerFailedLogin(policy, NOW).failedLoginAttempts).toBe(
+        1,
+      );
+    });
+
+    it('locks again only after a full new set of failures post-expiry', () => {
+      let account = makeAccount({
+        failedLoginAttempts: policy.maxFailedAttempts,
+        lockedUntil: new Date(NOW.getTime() - 1_000),
+      });
+
+      for (let i = 1; i < policy.maxFailedAttempts; i++) {
+        account = account.registerFailedLogin(policy, NOW);
+        expect(account.isLocked(NOW)).toBe(false);
+      }
+      account = account.registerFailedLogin(policy, NOW);
+
+      expect(account.failedLoginAttempts).toBe(policy.maxFailedAttempts);
+      expect(account.isLocked(NOW)).toBe(true);
+    });
+
+    it('keeps counting while a lock is still active', () => {
+      const lockedUntil = new Date(NOW.getTime() + 30_000);
+      const account = makeAccount({
+        failedLoginAttempts: policy.maxFailedAttempts,
+        lockedUntil,
+      });
+
+      const next = account.registerFailedLogin(policy, NOW);
+
+      expect(next.failedLoginAttempts).toBe(policy.maxFailedAttempts + 1);
+      expect(next.isLocked(NOW)).toBe(true);
+    });
+
     it('does not mutate the original', () => {
       const account = makeAccount({ failedLoginAttempts: 2 });
 

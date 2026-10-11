@@ -89,6 +89,7 @@ A global `ThrottlerGuard` adds an app-wide 100 req/min (`app.module.ts`).
 
 - `now` is always a **parameter**, never `new Date()` inside the entity, so lockout is testable without faking time.
 - Lockout thresholds arrive as a `LockoutPolicy` argument (`DEFAULT_LOCKOUT_POLICY`: 5 attempts, 15 minutes). They are an operations lever, not an invariant, and the entity must never read configuration.
+- An **expired lock resets the counter**: the first wrong password after `lockedUntil` passes counts as attempt 1, not as attempt N+1. A correct password also clears both fields via `clearLoginAttempts()`.
 
 ### Status transitions
 
