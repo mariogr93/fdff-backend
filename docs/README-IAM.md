@@ -187,7 +187,7 @@ There must be **exactly one** `DomainException` class: `@Catch(DomainException)`
    export class AthletesController { ... }
    ```
 3. **Import `IamModule`** in your feature module. `JwtAuthGuard` resolves the `'jwt'` strategy registered there; without the import, DI fails.
-4. **Read the actor from `request.user`** — `JwtStrategy.validate()` attaches the freshly-loaded domain `Account`, not the raw JWT payload.
+4. **Read the actor from `request.user`** — `JwtStrategy.validate()` reloads the account from the database, checks it is active, and attaches an `AuthenticatedUser` (`{ id, email, role }`), not the raw JWT payload and never the domain `Account`, so no hash can reach a response by accident.
 5. **Validate input with a DTO.** The global pipe runs `whitelist`, `forbidNonWhitelisted`, `transform`. Query params need `@Type(() => Number)` to coerce.
 6. **Keep logic in a use case**; the controller only maps HTTP to a command and projects the result.
 7. **Throttle** abuse-prone routes with `@Throttle({ default: { limit, ttl } })`.

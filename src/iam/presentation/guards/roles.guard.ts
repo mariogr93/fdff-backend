@@ -5,7 +5,7 @@ import {
   SetMetadata,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { Account } from '../../domain/account.model';
+import { type AuthenticatedUser } from '../../application/ports/authenticated-user';
 import { UserRoles } from '../../domain/enums/user-roles.enums';
 import { ForbiddenRoleException } from '../../domain/exceptions/forbidden-role.exception';
 
@@ -21,7 +21,7 @@ export class RolesGuard implements CanActivate {
       context.getClass(),
     ]);
     if (!required?.length) return true;
-    const { user } = context.switchToHttp().getRequest<{ user: Account }>();
+    const { user } = context.switchToHttp().getRequest<{ user?: AuthenticatedUser }>();
     if (!user || !required.includes(user.role)) {
       throw new ForbiddenRoleException(); // or ForbiddenException
     }

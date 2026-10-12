@@ -6,7 +6,7 @@ import {
   I_ACCOUNT_REPOSITORY,
   type IAccountRepository,
 } from '../../application/ports/account.repository.interface';
-import { Account } from '../../domain/account.model';
+import { type AuthenticatedUser } from '../../application/ports/authenticated-user';
 import { JwtPayload } from './jwt-payload.interface';
 import { loadJwtKeyPair } from './jwt-key.util';
 
@@ -27,7 +27,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     });
   }
 
-  async validate(payload: JwtPayload): Promise<Account> {
+  async validate(payload: JwtPayload): Promise<AuthenticatedUser> {
     if (!payload?.sub) {
       throw new UnauthorizedException('Invalid access token payload.');
     }
@@ -45,6 +45,6 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       );
     }
 
-    return account;
+    return { id: account.id, email: account.email, role: account.role };
   }
 }
