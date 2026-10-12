@@ -61,10 +61,14 @@ export class Account {
     // An expired lock is a fresh start. Without this the counter stays at the
     // threshold, so the first wrong password after the lock ends relocks.
     const lockExpired = this.lockedUntil !== null && this.lockedUntil <= now;
-    const failedLoginAttempts = (lockExpired ? 0 : this.failedLoginAttempts) + 1;
-    const lockedUntil = failedLoginAttempts >= policy.maxFailedAttempts
+    const failedLoginAttempts =
+      (lockExpired ? 0 : this.failedLoginAttempts) + 1;
+    const lockedUntil =
+      failedLoginAttempts >= policy.maxFailedAttempts
         ? new Date(now.getTime() + policy.lockoutDurationMs)
-        : lockExpired ? null : this.lockedUntil;
+        : lockExpired
+          ? null
+          : this.lockedUntil;
 
     return this.copyWith({ failedLoginAttempts, lockedUntil });
   }

@@ -4,6 +4,7 @@ import {
 } from '../application/ports/account.repository.interface';
 import { AccountsQuery } from '../application/ports/accounts-query';
 import { Account } from '../domain/account.model';
+import { AccountAlreadyExistsException } from '../domain/exceptions/account-already-exists.exception';
 
 /**
  * In-memory IAccountRepository for use-case tests. Insertion-ordered: findMany
@@ -33,6 +34,9 @@ export class FakeAccountRepository implements IAccountRepository {
   }
 
   save(account: Account): Promise<void> {
+    if (this.list().some((a) => a.email === account.email)) {
+      return Promise.reject(new AccountAlreadyExistsException(account.email));
+    }
     this.accounts.set(account.id, account);
     return Promise.resolve();
   }
@@ -40,6 +44,18 @@ export class FakeAccountRepository implements IAccountRepository {
   update(account: Account): Promise<void> {
     this.accounts.set(account.id, account);
     return Promise.resolve();
+  }
+
+  updateIfRefreshTokenHashIs(
+    account: Account,
+    expectedHash: string,
+  ): Promise<boolean> {
+    const stored = this.accounts.get(account.id);
+    if (!stored || stored.refreshTokenHash !== expectedHash) {
+      return Promise.resolve(false);
+    }
+    this.accounts.set(account.id, account);
+    return Promise.resolve(true);
   }
 
   findMany(query: AccountsQuery): Promise<AccountsPage> {

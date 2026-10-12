@@ -61,6 +61,21 @@ describe('RegisterAccountUseCase (public self-signup)', () => {
     ).rejects.toThrow(AccountAlreadyExistsException);
   });
 
+  it('lets only one of two simultaneous signups with one email win', async () => {
+    const repo = new FakeAccountRepository();
+    const useCase = new RegisterAccountUseCase(repo, hasher());
+
+    const results = await Promise.allSettled([
+      useCase.execute(signup),
+      useCase.execute(signup),
+    ]);
+
+    const rejected = results.filter((r) => r.status === 'rejected');
+    expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+    expect(rejected).toHaveLength(1);
+    expect(rejected[0].reason).toBeInstanceOf(AccountAlreadyExistsException);
+  });
+
   it('gives each account a distinct id', async () => {
     const repo = new FakeAccountRepository();
     const useCase = new RegisterAccountUseCase(repo, hasher());

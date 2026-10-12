@@ -10,6 +10,7 @@ import {
   AccountsSortOrder,
 } from '../../application/ports/accounts-query';
 import { Account } from '../../domain/account.model';
+import { AccountAlreadyExistsException } from '../../domain/exceptions/account-already-exists.exception';
 import { AccountOrmEntity } from './account.orm-entity';
 
 @Injectable()
@@ -37,11 +38,33 @@ export class TypeOrmAccountRepository implements IAccountRepository {
   }
 
   async save(account: Account): Promise<void> {
-    await this.repository.save(this.toOrm(account));
+    try {
+      await this.repository.insert(this.toOrm(account));
+    } catch (error) {
+      // 23505 = Postgres unique_violation. The id is a fresh UUID, so the only
+      // constraint that can realistically fire is the unique email.
+      const code = (error as { driverError?: { code?: string } }).driverError
+        ?.code;
+      if (code === '23505') {
+        throw new AccountAlreadyExistsException(account.email);
+      }
+      throw error;
+    }
   }
 
   async update(account: Account): Promise<void> {
     await this.repository.save(this.toOrm(account));
+  }
+
+  async updateIfRefreshTokenHashIs(
+    account: Account,
+    expectedHash: string,
+  ): Promise<boolean> {
+    const result = await this.repository.update(
+      { id: account.id, refreshTokenHash: expectedHash },
+      this.toOrm(account),
+    );
+    return result.affected === 1;
   }
 
   async findMany(query: AccountsQuery): Promise<AccountsPage> {

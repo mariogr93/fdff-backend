@@ -113,7 +113,10 @@ Deactivating a `PENDING` account is how a registration is rejected — the enum 
 | `IRefreshTokenServicePort` | `Symbol('I_REFRESH_TOKEN_SERVICE')` | `RefreshTokenService` |
 | `AuthPolicy` | `Symbol('I_AUTH_POLICY')` | factory in `iam.module.ts` |
 
-Repository methods: `findById`, `findByEmail`, `findByRefreshTokenHash`, `save`, `update`, `findMany(query) → { rows, total }`.
+Repository methods: `findById`, `findByEmail`, `findByRefreshTokenHash`, `save`, `update`, `updateIfRefreshTokenHashIs(account, expectedHash) → boolean`, `findMany(query) → { rows, total }`.
+
+- `save` is a strict **insert** for new accounts. Postgres unique violation (`23505`) becomes `AccountAlreadyExistsException` (400), so two simultaneous signups with one email give one 201 and a clean 400, never a 500.
+- `updateIfRefreshTokenHashIs` is optimistic locking: one conditional `UPDATE` that writes only if the stored refresh hash is still the expected one. It encodes no business rule; the domain still decides the new state.
 
 - `ITokenServicePort` exposes **`sign` only**. Tokens are verified by `JwtStrategy` through passport, so the port has no `verify`.
 - `AuthPolicy` resolves every tunable auth value once — refresh TTL and the lockout policy. Before it existed, `REFRESH_TOKEN_EXPIRES_DAYS` was parsed independently in two use cases with separate defaults.
