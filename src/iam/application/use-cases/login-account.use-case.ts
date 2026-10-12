@@ -20,10 +20,6 @@ import {
   I_TOKEN_SERVICE,
 } from '../ports/token.service.port';
 
-/** Precomputed bcrypt hash used when the email is unknown (timing-safe login). */
-const DUMMY_HASH =
-  '$2b$10$rgxcUa.Y5EjZdl9P46KgfOykqygbBW0ktqYw2hYclfvoGluFSICDm';
-
 export interface ILoginCommand {
   email: string;
   plainPassword: string;
@@ -52,29 +48,40 @@ export class LoginAccountUseCase {
     private readonly refreshTokens: IRefreshTokenServicePort,
   ) {}
 
+  private dummyHash?: Promise<string>;
+
+  /**
+   * A hash for emails that match no account, so they cost the same bcrypt work
+   * as a real one. Built with the real hasher rather than hardcoded, so its
+   * cost always follows SALT_ROUNDS. Built lazily and cached.
+   */
+  private getDummyHash(): Promise<string> {
+    return (this.dummyHash ??= this.passwordHasher.hash('timing-equaliser'));
+  }
+
   async execute(command: ILoginCommand): Promise<IAuthResult> {
     const now = new Date();
     const account = await this.accountRepo.findByEmail(command.email);
 
-    // Deliberately before the password check, as it has always been: a locked
-    // account short-circuits without running bcrypt. That is a timing signal
-    // which partly undercuts the DUMMY_HASH defence below, and is a known
-    // trade-off rather than an oversight — see docs/PROD-Security-gaps.md.
+    // Exactly one bcrypt comparison on every path, whether the email is
+    // unknown, the account is locked, or the password is wrong, so response
+    // time reveals nothing about which of those it was.
+    const isPasswordValid = await this.passwordHasher.compare(
+      command.plainPassword,
+      account?.passwordHash ?? (await this.getDummyHash()),
+    );
+
+    // Only someone who knows the password learns the account is locked.
+    // Everyone else gets the generic 401, and their guess is not counted: a
+    // locked account must not have its lock extended by strangers.
     if (account?.isLocked(now)) {
-      throw new AccountLockedException();
+      throw isPasswordValid
+        ? new AccountLockedException()
+        : new InvalidCredentialsException();
     }
 
-    // Always spend the cost of a bcrypt comparison, even for an unknown email,
-    // so response time does not reveal whether the account exists.
-    const isPasswordValid = account
-      ? await this.passwordHasher.compare(
-          command.plainPassword,
-          account.passwordHash,
-        )
-      : await this.passwordHasher
-          .compare(command.plainPassword, DUMMY_HASH)
-          .then(() => false);
-
+    // `!account` is checked on its own: a password that happens to match the
+    // dummy hash must never turn an unknown email into a login.
     if (!account || !isPasswordValid) {
       if (account) {
         await this.accountRepo.update(

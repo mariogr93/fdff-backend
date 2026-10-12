@@ -24,11 +24,12 @@ const build = (accounts = [makeAccount()]) => {
   const compare = jest.fn((plain: string) =>
     Promise.resolve(plain === 'correct'),
   );
+  const hash = jest.fn(() => Promise.resolve('hashed'));
   const sign = jest.fn(() => Promise.resolve({ accessToken: 'access-token' }));
 
   /** Accepts the password "correct" and nothing else. */
   const passwordHasher: IPasswordHasherPort = {
-    hash: jest.fn(() => Promise.resolve('hashed')),
+    hash,
     compare,
   };
   const tokenService: ITokenServicePort = { sign };
@@ -41,7 +42,7 @@ const build = (accounts = [makeAccount()]) => {
     new FakeRefreshTokenService(),
   );
 
-  return { useCase, repo, compare, sign };
+  return { useCase, repo, compare, hash, sign };
 };
 
 const login = (email = 'athlete@fdff.test', plainPassword = 'correct') => ({
@@ -89,6 +90,33 @@ describe('LoginAccountUseCase', () => {
     expect(compare).toHaveBeenCalledTimes(1);
   });
 
+  it('builds the timing-equalising hash with the real hasher, once', async () => {
+    const { useCase, compare, hash } = build([]);
+
+    await expect(useCase.execute(login('a@fdff.test'))).rejects.toThrow(
+      InvalidCredentialsException,
+    );
+    await expect(useCase.execute(login('b@fdff.test'))).rejects.toThrow(
+      InvalidCredentialsException,
+    );
+
+    // Same hasher, so the cost always matches real accounts. Built once.
+    expect(hash).toHaveBeenCalledTimes(1);
+    expect(compare).toHaveBeenNthCalledWith(1, 'correct', 'hashed');
+    expect(compare).toHaveBeenCalledTimes(2);
+  });
+
+  it('still rejects an unknown email when the password happens to match the dummy', async () => {
+    // The mock accepts "correct" against any hash, as a real password equal to
+    // the dummy's would. Only an existing account may turn that into a login.
+    const { useCase, repo } = build([]);
+
+    await expect(useCase.execute(login('nobody@fdff.test'))).rejects.toThrow(
+      InvalidCredentialsException,
+    );
+    expect(await repo.findByEmail('nobody@fdff.test')).toBeNull();
+  });
+
   it('rejects a wrong password and counts the attempt', async () => {
     const account = makeAccount({ failedLoginAttempts: 0 });
     const { useCase, repo } = build([account]);
@@ -113,7 +141,7 @@ describe('LoginAccountUseCase', () => {
     expect(locked?.isLocked(new Date())).toBe(true);
   });
 
-  it('refuses a locked account before checking the password at all', async () => {
+  it('tells the owner an account is locked, but only with the right password', async () => {
     const account = makeAccount({
       failedLoginAttempts: 3,
       lockedUntil: new Date(Date.now() + 60_000),
@@ -124,9 +152,39 @@ describe('LoginAccountUseCase', () => {
       AccountLockedException,
     );
 
-    // Documents the known trade-off: short-circuiting before bcrypt is a
-    // timing signal that a locked account exists.
-    expect(compare).not.toHaveBeenCalled();
+    // The password is checked first, so a locked account costs the same bcrypt
+    // work as any other and the lock is not a timing signal.
+    expect(compare).toHaveBeenCalledTimes(1);
+  });
+
+  it('answers a locked account with the generic 401 when the password is wrong', async () => {
+    const lockedUntil = new Date(Date.now() + 60_000);
+    const account = makeAccount({ failedLoginAttempts: 3, lockedUntil });
+    const { useCase, repo, compare } = build([account]);
+
+    await expect(
+      useCase.execute(login(account.email, 'wrong')),
+    ).rejects.toThrow(InvalidCredentialsException);
+
+    expect(compare).toHaveBeenCalledTimes(1);
+    // Guessing at a locked account must not extend or deepen the lock.
+    const stored = await repo.findById(account.id);
+    expect(stored?.failedLoginAttempts).toBe(3);
+    expect(stored?.lockedUntil).toEqual(lockedUntil);
+  });
+
+  it('lets a user in once the lock has expired', async () => {
+    const account = makeAccount({
+      failedLoginAttempts: 3,
+      lockedUntil: new Date(Date.now() - 1_000),
+    });
+    const { useCase, repo } = build([account]);
+
+    await expect(useCase.execute(login())).resolves.toBeDefined();
+
+    const stored = await repo.findById(account.id);
+    expect(stored?.failedLoginAttempts).toBe(0);
+    expect(stored?.lockedUntil).toBeNull();
   });
 
   it('refuses a pending account even with the right password, and clears its attempts', async () => {

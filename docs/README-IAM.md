@@ -139,11 +139,12 @@ Repository methods: `findById`, `findByEmail`, `findByRefreshTokenHash`, `save`,
 ```
 findByEmail
   ↓
-isLocked(now)?            → AccountLockedException (423)
-  ↓                         [see the trade-off below]
-bcrypt compare             (against DUMMY_HASH when the email is unknown,
-  ↓                          so response time doesn't reveal existence)
-invalid?                  → registerFailedLogin → update → InvalidCredentials (401)
+bcrypt compare             (always exactly one; against a dummy hash built by the
+  ↓                          same hasher when the email is unknown, so response
+  ↓                          time doesn't reveal existence or lock state)
+account locked?            → right password: AccountLockedException (423)
+  ↓                          wrong password: InvalidCredentials (401), counter untouched
+no account / invalid?      → registerFailedLogin → update → InvalidCredentials (401)
   ↓
 isActive()?               → clearLoginAttempts → update → AccountNotActivated (401)
   ↓
@@ -154,7 +155,7 @@ sign RS256 access token
 Set-Cookie: refresh_token  +  JSON { accessToken, accountId, role }
 ```
 
-**Known trade-off:** the lockout check runs *before* bcrypt, so a locked account short-circuits without paying the hash cost. That is a timing signal which partly undercuts the `DUMMY_HASH` enumeration defence directly below it. It is deliberate and commented in the code — change it knowingly, not as a refactor side effect.
+**Timing and disclosure:** every path pays one bcrypt comparison (measured at cost 12: unknown email, wrong password, locked account all about 210 ms). Only someone who proves they know the password is told the account is locked (423) or not yet activated; everyone else sees the same generic 401. A guess at a locked account is not counted, so strangers cannot extend a lock. The dummy hash is built lazily with the real hasher, so its cost follows `SALT_ROUNDS`; the first unknown-email login after boot pays one extra hash.
 
 The refresh path deliberately returns **one opaque error** for every failure (no such token, or account not active). Unlike login, it must not let a stolen cookie distinguish those cases.
 
