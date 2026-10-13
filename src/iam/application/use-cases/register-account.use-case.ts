@@ -4,6 +4,7 @@ import { Account } from '../../domain/account.model';
 import { AccountStatus } from '../../domain/enums/account-status.enum';
 import { UserRoles } from '../../domain/enums/user-roles.enums';
 import { AccountAlreadyExistsException } from '../../domain/exceptions/account-already-exists.exception';
+import { normalizeEmail } from '../../domain/normalize-email';
 import {
   I_ACCOUNT_REPOSITORY,
   type IAccountRepository,
@@ -34,14 +35,15 @@ export class RegisterAccountUseCase {
   ) {}
 
   async execute(command: RegisterAccountCommand): Promise<Account> {
-    const existing = await this.accountRepo.findByEmail(command.email);
+    const email = normalizeEmail(command.email);
+    const existing = await this.accountRepo.findByEmail(email);
     if (existing) {
-      throw new AccountAlreadyExistsException(command.email);
+      throw new AccountAlreadyExistsException(email);
     }
 
     const account = new Account(
       randomUUID(),
-      command.email,
+      email,
       await this.passwordHasher.hash(command.plainPassword),
       UserRoles.ATHLETE,
       // An admin must activate the account before it can sign in.

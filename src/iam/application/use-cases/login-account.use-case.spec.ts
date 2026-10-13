@@ -79,6 +79,15 @@ describe('LoginAccountUseCase', () => {
     expect(expiresAt).toBeLessThanOrEqual(after + policy.refreshTokenTtlMs);
   });
 
+  it('finds the account whatever the case or spacing of the typed email', async () => {
+    const account = makeAccount({ email: 'athlete@fdff.test' });
+    const { useCase } = build([account]);
+
+    await expect(
+      useCase.execute(login('  Athlete@FDFF.test ')),
+    ).resolves.toMatchObject({ accountId: account.id });
+  });
+
   it('rejects an unknown email without revealing that it is unknown', async () => {
     const { useCase, compare } = build([]);
 

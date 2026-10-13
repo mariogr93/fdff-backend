@@ -1,4 +1,3 @@
-import { Transform } from 'class-transformer';
 import {
   IsEmail,
   IsEnum,
@@ -13,9 +12,6 @@ import { UserRoles } from '../../domain/enums/user-roles.enums';
 export class CreateAccountDto {
   @IsEmail()
   @MaxLength(100)
-  @Transform(({ value }: { value: unknown }) =>
-    typeof value === 'string' ? value.trim().toLowerCase() : value,
-  )
   email: string;
 
   @IsString()

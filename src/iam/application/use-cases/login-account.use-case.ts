@@ -2,6 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import { AccountLockedException } from '../../domain/exceptions/account-locked.exception';
 import { AccountNotActivatedException } from '../../domain/exceptions/account-not-activated.exception';
 import { InvalidCredentialsException } from '../../domain/exceptions/invalid-credentials.exception';
+import { normalizeEmail } from '../../domain/normalize-email';
 import { type AuthPolicy, I_AUTH_POLICY } from '../ports/auth-policy';
 import {
   I_REFRESH_TOKEN_SERVICE,
@@ -61,7 +62,9 @@ export class LoginAccountUseCase {
 
   async execute(command: ILoginCommand): Promise<IAuthResult> {
     const now = new Date();
-    const account = await this.accountRepo.findByEmail(command.email);
+    const account = await this.accountRepo.findByEmail(
+      normalizeEmail(command.email),
+    );
 
     // Exactly one bcrypt comparison on every path, whether the email is
     // unknown, the account is locked, or the password is wrong, so response

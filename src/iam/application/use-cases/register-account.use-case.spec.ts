@@ -76,6 +76,28 @@ describe('RegisterAccountUseCase (public self-signup)', () => {
     expect(rejected[0].reason).toBeInstanceOf(AccountAlreadyExistsException);
   });
 
+  it('stores the email trimmed and lowercase', async () => {
+    const account = await new RegisterAccountUseCase(
+      new FakeAccountRepository(),
+      hasher(),
+    ).execute({ ...signup, email: '  Athlete@FDFF.test ' });
+
+    expect(account.email).toBe('athlete@fdff.test');
+  });
+
+  it('treats a differently-cased email as a duplicate', async () => {
+    const repo = new FakeAccountRepository([
+      makeAccount({ email: 'athlete@fdff.test' }),
+    ]);
+
+    await expect(
+      new RegisterAccountUseCase(repo, hasher()).execute({
+        ...signup,
+        email: 'ATHLETE@fdff.test',
+      }),
+    ).rejects.toThrow(AccountAlreadyExistsException);
+  });
+
   it('gives each account a distinct id', async () => {
     const repo = new FakeAccountRepository();
     const useCase = new RegisterAccountUseCase(repo, hasher());
@@ -104,6 +126,29 @@ describe('CreateAccountUseCase (admin-provisioned)', () => {
       expect(account.isActive()).toBe(true);
     },
   );
+
+  it('stores the email trimmed and lowercase', async () => {
+    const account = await new CreateAccountUseCase(
+      new FakeAccountRepository(),
+      hasher(),
+    ).execute({ ...signup, email: ' Judge@FDFF.test', role: UserRoles.JUDGE });
+
+    expect(account.email).toBe('judge@fdff.test');
+  });
+
+  it('treats a differently-cased email as a duplicate', async () => {
+    const repo = new FakeAccountRepository([
+      makeAccount({ email: 'athlete@fdff.test' }),
+    ]);
+
+    await expect(
+      new CreateAccountUseCase(repo, hasher()).execute({
+        ...signup,
+        email: 'Athlete@FDFF.test',
+        role: UserRoles.JUDGE,
+      }),
+    ).rejects.toThrow(AccountAlreadyExistsException);
+  });
 
   it('rejects a duplicate email', async () => {
     const repo = new FakeAccountRepository([

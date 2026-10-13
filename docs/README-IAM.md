@@ -76,7 +76,7 @@ A global `ThrottlerGuard` adds an app-wide 100 req/min (`app.module.ts`).
 | Field | Notes |
 | --- | --- |
 | `id` | UUID, generated in application code (`randomUUID`) |
-| `email` | unique login identifier, lowercased and trimmed at the DTO |
+| `email` | unique login identifier, case-insensitive: stored trimmed and lowercase by `normalizeEmail()` (`domain/normalize-email.ts`), which login, register, create and the seed all call. DTOs only validate the format |
 | `passwordHash` | bcrypt, `SALT_ROUNDS` (default 10) |
 | `role` | `ADMIN` \| `JUDGE` \| `ATHLETE` |
 | `status` | `PENDING` \| `ACTIVE` \| `INACTIVE` |
@@ -214,7 +214,7 @@ There must be **exactly one** `DomainException` class: `@Catch(DomainException)`
 | `NODE_ENV` | **required** | `development`, `production` or `test`; refresh cookie is `Secure` in every environment except `development` |
 | `FRONTEND_URL` | `http://localhost:5173` | CORS origin (single value, not an allowlist) |
 | `PORT` | `3000` | HTTP port |
-| `ADMIN_EMAIL` / `ADMIN_PASSWORD` | — | `npm run db:seed` only |
+| `ADMIN_EMAIL` / `ADMIN_PASSWORD` | — | `npm run db:seed` only. The email is lowercased; the password must meet the signup strength rule (8-20 characters, upper, lower, digit, special) or the seed refuses |
 
 Startup validation (`src/shared/config/validate-env.ts`) refuses to boot, and the TypeORM CLI refuses to run, if a required variable is missing or if `DB_PORT`, `SALT_ROUNDS` or `REFRESH_TOKEN_EXPIRES_DAYS` is set but not a positive integer. The error names variables, never values.
 

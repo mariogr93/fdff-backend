@@ -11,6 +11,8 @@ import {
   type IPasswordHasherPort,
 } from '../iam/application/ports/password-hasher.port';
 import { Account } from '../iam/domain/account.model';
+import { normalizeEmail } from '../iam/domain/normalize-email';
+import { PASSWORD_STRENGTH_REGEX } from '../shared/validators/password-strength.validator';
 import { AccountStatus } from '../iam/domain/enums/account-status.enum';
 import { UserRoles } from '../iam/domain/enums/user-roles.enums';
 
@@ -22,7 +24,10 @@ async function seedAdmin(): Promise<void> {
   try {
     console.log('Seeding admin account...');
     const config = app.get(ConfigService);
-    const adminEmail = config.get<string>('ADMIN_EMAIL')?.trim();
+    const rawAdminEmail = config.get<string>('ADMIN_EMAIL');
+    const adminEmail = rawAdminEmail
+      ? normalizeEmail(rawAdminEmail)
+      : undefined;
     const adminPassword = config.get<string>('ADMIN_PASSWORD')?.trim();
 
     const accountRepo = app.get<IAccountRepository>(I_ACCOUNT_REPOSITORY);
@@ -41,6 +46,13 @@ async function seedAdmin(): Promise<void> {
     if (!adminEmail || !adminPassword) {
       console.error(
         'Missing required environment variables: ADMIN_EMAIL and ADMIN_PASSWORD must be set in .env',
+      );
+      process.exit(1);
+    }
+
+    if (!PASSWORD_STRENGTH_REGEX.test(adminPassword)) {
+      console.error(
+        'ADMIN_PASSWORD must be 8-20 characters with uppercase, lowercase, a number and a special character, the same rule as signup.',
       );
       process.exit(1);
     }
