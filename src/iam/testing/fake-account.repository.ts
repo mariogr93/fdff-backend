@@ -33,6 +33,12 @@ export class FakeAccountRepository implements IAccountRepository {
     );
   }
 
+  findByPreviousRefreshTokenHash(hash: string): Promise<Account | null> {
+    return Promise.resolve(
+      this.list().find((a) => a.previousRefreshTokenHash === hash) ?? null,
+    );
+  }
+
   save(account: Account): Promise<void> {
     if (this.list().some((a) => a.email === account.email)) {
       return Promise.reject(new AccountAlreadyExistsException(account.email));

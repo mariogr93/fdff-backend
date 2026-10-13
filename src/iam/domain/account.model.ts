@@ -28,6 +28,7 @@ interface AccountState {
   lockedUntil: Date | null;
   refreshTokenHash: string | null;
   refreshTokenExpiresAt: Date | null;
+  previousRefreshTokenHash: string | null;
 }
 
 export class Account {
@@ -41,6 +42,7 @@ export class Account {
     public readonly lockedUntil: Date | null = null,
     public readonly refreshTokenHash: string | null = null,
     public readonly refreshTokenExpiresAt: Date | null = null,
+    public readonly previousRefreshTokenHash: string | null = null,
   ) {}
 
   /**
@@ -110,13 +112,33 @@ export class Account {
       status: AccountStatus.INACTIVE,
       refreshTokenHash: null,
       refreshTokenExpiresAt: null,
+      previousRefreshTokenHash: null,
     });
   }
 
+  /**
+   * Starts a session (login). Deliberately forgets any previous token: a login
+   * is not a rotation, so the token it replaces must not later look like theft
+   * when another device still holds it.
+   */
   withRefreshToken(refreshTokenHash: string, expiresAt: Date): Account {
     return this.copyWith({
       refreshTokenHash,
       refreshTokenExpiresAt: expiresAt,
+      previousRefreshTokenHash: null,
+    });
+  }
+
+  /**
+   * Replaces the token within an existing session (refresh) and remembers the
+   * one it replaced, so a later presentation of that old token can be
+   * recognised as reuse.
+   */
+  rotateRefreshToken(refreshTokenHash: string, expiresAt: Date): Account {
+    return this.copyWith({
+      refreshTokenHash,
+      refreshTokenExpiresAt: expiresAt,
+      previousRefreshTokenHash: this.refreshTokenHash,
     });
   }
 
@@ -124,6 +146,7 @@ export class Account {
     return this.copyWith({
       refreshTokenHash: null,
       refreshTokenExpiresAt: null,
+      previousRefreshTokenHash: null,
     });
   }
 
@@ -151,6 +174,7 @@ export class Account {
       lockedUntil: this.lockedUntil,
       refreshTokenHash: this.refreshTokenHash,
       refreshTokenExpiresAt: this.refreshTokenExpiresAt,
+      previousRefreshTokenHash: this.previousRefreshTokenHash,
       ...changes,
     };
 
@@ -164,6 +188,7 @@ export class Account {
       next.lockedUntil,
       next.refreshTokenHash,
       next.refreshTokenExpiresAt,
+      next.previousRefreshTokenHash,
     );
   }
 }

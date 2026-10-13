@@ -205,12 +205,14 @@ describe('Account', () => {
         status: AccountStatus.ACTIVE,
         refreshTokenHash: 'live-session',
         refreshTokenExpiresAt: new Date('2026-01-02T12:00:00Z'),
+        previousRefreshTokenHash: 'older-token',
       });
 
       const next = account.deactivate();
 
       expect(next.refreshTokenHash).toBeNull();
       expect(next.refreshTokenExpiresAt).toBeNull();
+      expect(next.previousRefreshTokenHash).toBeNull();
     });
 
     it('leaves the refresh token alone on activation', () => {
@@ -257,6 +259,49 @@ describe('Account', () => {
       }).clearRefreshToken();
       expect(next.refreshTokenHash).toBeNull();
       expect(next.refreshTokenExpiresAt).toBeNull();
+    });
+
+    describe('rotateRefreshToken', () => {
+      it('swaps in the new token and remembers the one it replaced', () => {
+        const account = makeAccount({
+          refreshTokenHash: 'first',
+          refreshTokenExpiresAt: now,
+        });
+
+        const next = account.rotateRefreshToken('second', later);
+
+        expect(next.refreshTokenHash).toBe('second');
+        expect(next.refreshTokenExpiresAt).toEqual(later);
+        expect(next.previousRefreshTokenHash).toBe('first');
+      });
+
+      it('only remembers one generation back', () => {
+        const next = makeAccount({ refreshTokenHash: 'first' })
+          .rotateRefreshToken('second', later)
+          .rotateRefreshToken('third', later);
+
+        expect(next.previousRefreshTokenHash).toBe('second');
+      });
+    });
+
+    it('forgets the previous token when a new session starts (login)', () => {
+      const account = makeAccount({
+        refreshTokenHash: 'other-device',
+        previousRefreshTokenHash: 'older',
+      });
+
+      const next = account.withRefreshToken('fresh', later);
+
+      expect(next.previousRefreshTokenHash).toBeNull();
+    });
+
+    it('clears the previous token together with the current one', () => {
+      const next = makeAccount({
+        refreshTokenHash: 'hash',
+        previousRefreshTokenHash: 'older',
+      }).clearRefreshToken();
+
+      expect(next.previousRefreshTokenHash).toBeNull();
     });
 
     describe('hasLiveRefreshToken', () => {

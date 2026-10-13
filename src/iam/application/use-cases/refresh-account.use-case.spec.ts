@@ -117,6 +117,64 @@ describe('RefreshAccountUseCase', () => {
     );
   });
 
+  describe('reuse detection', () => {
+    it('remembers the replaced token after a rotation', async () => {
+      const account = sessionOf();
+      const { useCase, repo } = build([account]);
+
+      await useCase.execute(TOKEN);
+
+      expect((await repo.findById(account.id))?.previousRefreshTokenHash).toBe(
+        HASH,
+      );
+    });
+
+    it('ends the whole session when an already-replaced token is presented', async () => {
+      const account = sessionOf();
+      const { useCase, repo } = build([account]);
+      const { refreshToken: current } = await useCase.execute(TOKEN);
+
+      await expect(useCase.execute(TOKEN)).rejects.toThrow(
+        InvalidRefreshTokenException,
+      );
+
+      const stored = await repo.findById(account.id);
+      expect(stored?.refreshTokenHash).toBeNull();
+      expect(stored?.refreshTokenExpiresAt).toBeNull();
+      expect(stored?.previousRefreshTokenHash).toBeNull();
+      // The legitimate holder of the newest token is signed out too.
+      await expect(useCase.execute(current)).rejects.toThrow(
+        InvalidRefreshTokenException,
+      );
+    });
+
+    it('does nothing for a token that was never issued', async () => {
+      const account = sessionOf();
+      const { useCase, repo } = build([account]);
+
+      await expect(useCase.execute('never-issued')).rejects.toThrow(
+        InvalidRefreshTokenException,
+      );
+
+      const stored = await repo.findById(account.id);
+      expect(stored?.refreshTokenHash).toBe(HASH);
+    });
+
+    it('does not treat an expired current token as theft', async () => {
+      const account = sessionOf({
+        refreshTokenExpiresAt: new Date(Date.now() - 1_000),
+        previousRefreshTokenHash: 'older',
+      });
+      const { useCase, repo } = build([account]);
+
+      await expect(useCase.execute(TOKEN)).rejects.toThrow(
+        InvalidRefreshTokenException,
+      );
+
+      expect((await repo.findById(account.id))?.refreshTokenHash).toBe(HASH);
+    });
+  });
+
   it('lets only one of two simultaneous refreshes with the same token win', async () => {
     const account = sessionOf();
     const { useCase, repo } = build([account]);

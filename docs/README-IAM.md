@@ -62,7 +62,7 @@ A global `ThrottlerGuard` adds an app-wide 100 req/min (`app.module.ts`).
 | Token | Lifetime | Transport | Storage |
 | --- | --- | --- | --- |
 | Access | `JWT_EXPIRES_IN` (default `15m`) | JSON response body | in-memory on the client only |
-| Refresh | `REFRESH_TOKEN_EXPIRES_DAYS` (default 1) | `HttpOnly` cookie | SHA-256 hash in `accounts.refresh_token_hash`, expiry in `accounts.refresh_token_expires_at` |
+| Refresh | `REFRESH_TOKEN_EXPIRES_DAYS` (default 1) | `HttpOnly` cookie | SHA-256 hash in `accounts.refresh_token_hash`, expiry in `accounts.refresh_token_expires_at`, replaced token in `accounts.previous_refresh_token_hash` |
 
 - Access tokens are **RS256**, signed with the private key; the payload is identity-only — `{ sub, email }`. **Role is deliberately not a claim.** `RolesGuard` reads the freshly-loaded `Account`, so a demoted or deactivated admin loses access on the next request instead of at token expiry. Do not "optimise" that database read away.
 - The refresh token is an opaque 64-char random string. Only its hash is stored, so a database leak does not yield usable tokens.
@@ -83,9 +83,10 @@ A global `ThrottlerGuard` adds an app-wide 100 req/min (`app.module.ts`).
 | `failedLoginAttempts` | lockout counter |
 | `lockedUntil` | nullable |
 | `refreshTokenHash` | nullable until first login; nulled on logout and deactivation |
+| `previousRefreshTokenHash` | the token the latest rotation replaced; nulled with the current one, and at login. Used only to detect reuse |
 | `refreshTokenExpiresAt` | when the stored refresh token stops being valid; nulled together with the hash. A hash with no expiry counts as expired |
 
-**Behaviour:** `isActive()`, `isLocked(now)`, `registerFailedLogin(policy, now)`, `clearLoginAttempts()`, `activate()`, `deactivate()`, `withRefreshToken(hash, expiresAt)`, `clearRefreshToken()`, `hasLiveRefreshToken(now)`. All route through one private `copyWith()`, which is the only place an `Account` is rebuilt.
+**Behaviour:** `isActive()`, `isLocked(now)`, `registerFailedLogin(policy, now)`, `clearLoginAttempts()`, `activate()`, `deactivate()`, `withRefreshToken(hash, expiresAt)` (new session), `rotateRefreshToken(hash, expiresAt)` (refresh), `clearRefreshToken()`, `hasLiveRefreshToken(now)`. All route through one private `copyWith()`, which is the only place an `Account` is rebuilt.
 
 - `now` is always a **parameter**, never `new Date()` inside the entity, so lockout is testable without faking time.
 - Lockout thresholds arrive as a `LockoutPolicy` argument (`DEFAULT_LOCKOUT_POLICY`: 5 attempts, 15 minutes). They are an operations lever, not an invariant, and the entity must never read configuration.
@@ -113,7 +114,7 @@ Deactivating a `PENDING` account is how a registration is rejected — the enum 
 | `IRefreshTokenServicePort` | `Symbol('I_REFRESH_TOKEN_SERVICE')` | `RefreshTokenService` |
 | `AuthPolicy` | `Symbol('I_AUTH_POLICY')` | factory in `iam.module.ts` |
 
-Repository methods: `findById`, `findByEmail`, `findByRefreshTokenHash`, `save`, `update`, `updateIfRefreshTokenHashIs(account, expectedHash) → boolean`, `findMany(query) → { rows, total }`.
+Repository methods: `findById`, `findByEmail`, `findByRefreshTokenHash`, `findByPreviousRefreshTokenHash`, `save`, `update`, `updateIfRefreshTokenHashIs(account, expectedHash) → boolean`, `findMany(query) → { rows, total }`.
 
 - `save` is a strict **insert** for new accounts. Postgres unique violation (`23505`) becomes `AccountAlreadyExistsException` (400), so two simultaneous signups with one email give one 201 and a clean 400, never a 500.
 - `updateIfRefreshTokenHashIs` is optimistic locking: one conditional `UPDATE` that writes only if the stored refresh hash is still the expected one. It encodes no business rule; the domain still decides the new state.
@@ -159,7 +160,9 @@ Set-Cookie: refresh_token  +  JSON { accessToken, accountId, role }
 
 The refresh path deliberately returns **one opaque error** for every failure (no such token, expired token, account not active, or a lost race). Unlike login, it must not let a stolen cookie distinguish those cases.
 
-A refresh token is **single-use** and **expires on the server**. `findByRefreshTokenHash` finds the account, `hasLiveRefreshToken(now)` enforces `refresh_token_expires_at`, and the rotation is written with `updateIfRefreshTokenHashIs(rotated, oldHash)`, so of two simultaneous refreshes with one cookie exactly one succeeds. A stored hash with no expiry (a session from before the column existed) counts as expired. Reuse of an already-rotated token is not yet treated as theft; see the fix plan, item 13.
+A refresh token is **single-use** and **expires on the server**. `findByRefreshTokenHash` finds the account, `hasLiveRefreshToken(now)` enforces `refresh_token_expires_at`, and the rotation is written with `updateIfRefreshTokenHashIs(rotated, oldHash)`, so of two simultaneous refreshes with one cookie exactly one succeeds. A stored hash with no expiry (a session from before the column existed) counts as expired.
+
+**Reuse detection:** each rotation remembers the token it replaced. If that old token is presented again, no account holds it as current, but one holds it as previous, so the session is ended (`clearRefreshToken()`), a warning with the **account id only** is logged, and the caller still gets the same opaque 401. The holder of the newest token is signed out too and must log in again. Limits: only the immediately previous token is recognised; a lost response followed by a retry looks like reuse; an expired current token or a lost rotation race is *not* treated as theft; login starts a fresh session and forgets the previous token, so a second device's login does not trip it.
 
 ## 7. Exceptions → HTTP
 

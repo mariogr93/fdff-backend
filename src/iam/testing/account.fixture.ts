@@ -12,6 +12,7 @@ export interface AccountOverrides {
   lockedUntil?: Date | null;
   refreshTokenHash?: string | null;
   refreshTokenExpiresAt?: Date | null;
+  previousRefreshTokenHash?: string | null;
 }
 
 /**
@@ -29,5 +30,6 @@ export function makeAccount(overrides: AccountOverrides = {}): Account {
     overrides.lockedUntil ?? null,
     overrides.refreshTokenHash ?? null,
     overrides.refreshTokenExpiresAt ?? null,
+    overrides.previousRefreshTokenHash ?? null,
   );
 }

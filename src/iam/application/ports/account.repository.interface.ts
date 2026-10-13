@@ -13,6 +13,8 @@ export interface IAccountRepository {
   findById(id: string): Promise<Account | null>;
   findByEmail(email: string): Promise<Account | null>;
   findByRefreshTokenHash(hash: string): Promise<Account | null>;
+  /** The token a rotation just replaced; finding one means it was reused. */
+  findByPreviousRefreshTokenHash(hash: string): Promise<Account | null>;
   /**
    * Inserts a NEW account. Throws AccountAlreadyExistsException when the email
    * is taken, including when two requests race past a findByEmail check.

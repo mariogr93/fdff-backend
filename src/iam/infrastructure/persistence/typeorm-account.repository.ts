@@ -37,6 +37,13 @@ export class TypeOrmAccountRepository implements IAccountRepository {
     return row ? this.toDomain(row) : null;
   }
 
+  async findByPreviousRefreshTokenHash(hash: string): Promise<Account | null> {
+    const row = await this.repository.findOne({
+      where: { previousRefreshTokenHash: hash },
+    });
+    return row ? this.toDomain(row) : null;
+  }
+
   async save(account: Account): Promise<void> {
     try {
       await this.repository.insert(this.toOrm(account));
@@ -103,6 +110,7 @@ export class TypeOrmAccountRepository implements IAccountRepository {
       row.lockedUntil,
       row.refreshTokenHash,
       row.refreshTokenExpiresAt,
+      row.previousRefreshTokenHash,
     );
   }
 
@@ -117,6 +125,7 @@ export class TypeOrmAccountRepository implements IAccountRepository {
     row.lockedUntil = account.lockedUntil;
     row.refreshTokenHash = account.refreshTokenHash;
     row.refreshTokenExpiresAt = account.refreshTokenExpiresAt;
+    row.previousRefreshTokenHash = account.previousRefreshTokenHash;
     return row;
   }
 }

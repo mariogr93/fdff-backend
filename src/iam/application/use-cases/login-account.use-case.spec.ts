@@ -222,6 +222,19 @@ describe('LoginAccountUseCase', () => {
     expect((await repo.findById(account.id))?.failedLoginAttempts).toBe(0);
   });
 
+  it('does not carry a previous token into a new session', async () => {
+    const account = makeAccount({
+      refreshTokenHash: 'other-device',
+      previousRefreshTokenHash: 'older',
+    });
+    const { useCase, repo } = build([account]);
+
+    await useCase.execute(login());
+
+    const stored = await repo.findById(account.id);
+    expect(stored?.previousRefreshTokenHash).toBeNull();
+  });
+
   it('rotates the refresh hash on each login', async () => {
     const account = makeAccount({ refreshTokenHash: 'old-hash' });
     const { useCase, repo } = build([account]);
