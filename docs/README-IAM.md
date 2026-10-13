@@ -129,7 +129,7 @@ Repository methods: `findById`, `findByEmail`, `findByRefreshTokenHash`, `save`,
 | `RegisterAccountUseCase` | duplicate email → `409`-free `400`; always `ATHLETE` + `PENDING` |
 | `CreateAccountUseCase` | admin-provisioned; explicit role, `ACTIVE` |
 | `LoginAccountUseCase` | lockout, timing-safe compare, active-only, rotation |
-| `RefreshAccountUseCase` | hash lookup, active-only, rotation, opaque failure |
+| `RefreshAccountUseCase` | hash lookup, active-only, server-side expiry, single-use rotation (guarded write), opaque failure |
 | `LogoutAccountUseCase` | nulls the stored hash; tolerates a missing/unknown token |
 | `ActivateAccountUseCase` / `DeactivateAccountUseCase` | existence → `404`, then the domain transition |
 | `GetAccountsUseCase` | always paginated |
@@ -157,7 +157,9 @@ Set-Cookie: refresh_token  +  JSON { accessToken, accountId, role }
 
 **Timing and disclosure:** every path pays one bcrypt comparison (measured at cost 12: unknown email, wrong password, locked account all about 210 ms). Only someone who proves they know the password is told the account is locked (423) or not yet activated; everyone else sees the same generic 401. A guess at a locked account is not counted, so strangers cannot extend a lock. The dummy hash is built lazily with the real hasher, so its cost follows `SALT_ROUNDS`; the first unknown-email login after boot pays one extra hash.
 
-The refresh path deliberately returns **one opaque error** for every failure (no such token, or account not active). Unlike login, it must not let a stolen cookie distinguish those cases.
+The refresh path deliberately returns **one opaque error** for every failure (no such token, expired token, account not active, or a lost race). Unlike login, it must not let a stolen cookie distinguish those cases.
+
+A refresh token is **single-use** and **expires on the server**. `findByRefreshTokenHash` finds the account, `hasLiveRefreshToken(now)` enforces `refresh_token_expires_at`, and the rotation is written with `updateIfRefreshTokenHashIs(rotated, oldHash)`, so of two simultaneous refreshes with one cookie exactly one succeeds. A stored hash with no expiry (a session from before the column existed) counts as expired. Reuse of an already-rotated token is not yet treated as theft; see the fix plan, item 13.
 
 ## 7. Exceptions → HTTP
 

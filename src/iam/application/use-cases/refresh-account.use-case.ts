@@ -35,25 +35,32 @@ export class RefreshAccountUseCase {
   ) {}
 
   async execute(plainRefreshToken: string): Promise<IRefreshResult> {
+    const now = new Date();
     const tokenHash = this.refreshTokens.hash(plainRefreshToken);
     const account = await this.accountRepo.findByRefreshTokenHash(tokenHash);
 
-    // One opaque error for every failure. Unlike login, this must not
-    // distinguish "no such token" from "account not active", or it becomes a
-    // way to probe account state with a stolen cookie.
-    if (!account || !account.isActive()) {
+    // One opaque error for every failure: unknown token, expired token,
+    // inactive account, lost race. Unlike login, this must not let a stolen
+    // cookie tell those apart, or it becomes a way to probe account state.
+    if (!account || !account.isActive() || !account.hasLiveRefreshToken(now)) {
       throw new InvalidRefreshTokenException();
     }
 
     const newRefreshToken = this.refreshTokens.generate();
-    const expiresAt = new Date(Date.now() + this.policy.refreshTokenTtlMs);
-
-    await this.accountRepo.update(
-      account.withRefreshToken(
-        this.refreshTokens.hash(newRefreshToken),
-        expiresAt,
-      ),
+    const rotated = account.withRefreshToken(
+      this.refreshTokens.hash(newRefreshToken),
+      new Date(now.getTime() + this.policy.refreshTokenTtlMs),
     );
+
+    // Single-use: the write only lands if the stored hash is still the one we
+    // read. Of two simultaneous refreshes with one cookie, exactly one wins.
+    const won = await this.accountRepo.updateIfRefreshTokenHashIs(
+      rotated,
+      tokenHash,
+    );
+    if (!won) {
+      throw new InvalidRefreshTokenException();
+    }
 
     const { accessToken } = await this.tokenService.sign({
       id: account.id,
