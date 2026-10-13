@@ -8,8 +8,11 @@ import {
   ParseUUIDPipe,
   Post,
   Query,
+  Req,
   UseGuards,
 } from '@nestjs/common';
+import type { Request } from 'express';
+import type { AuthenticatedUser } from '../application/ports/authenticated-user';
 import { ActivateAccountUseCase } from '../application/use-cases/activate-account.use-case';
 import { CreateAccountUseCase } from '../application/use-cases/create-account.use-case';
 import { DeactivateAccountUseCase } from '../application/use-cases/deactivate-account.use-case';
@@ -87,7 +90,11 @@ export class AccountController {
   @HttpCode(HttpStatus.NO_CONTENT)
   async deactivateAccount(
     @Param('accountId', ParseUUIDPipe) accountId: string,
+    @Req() req: Request & { user: AuthenticatedUser },
   ): Promise<void> {
-    await this.deactivateAccountUseCase.execute({ accountId });
+    await this.deactivateAccountUseCase.execute({
+      accountId,
+      actorId: req.user.id,
+    });
   }
 }

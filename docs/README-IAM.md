@@ -132,7 +132,7 @@ Repository methods: `findById`, `findByEmail`, `findByRefreshTokenHash`, `findBy
 | `LoginAccountUseCase` | lockout, timing-safe compare, active-only, rotation |
 | `RefreshAccountUseCase` | hash lookup, active-only, server-side expiry, single-use rotation (guarded write), opaque failure |
 | `LogoutAccountUseCase` | nulls the stored hash; tolerates a missing/unknown token |
-| `ActivateAccountUseCase` / `DeactivateAccountUseCase` | existence → `404`, then the domain transition |
+| `ActivateAccountUseCase` / `DeactivateAccountUseCase` | existence → `404`, then the domain transition. Deactivate first refuses `actorId === accountId` (`409`); "last admin must remain" is not enforced |
 | `GetAccountsUseCase` | always paginated |
 
 ### Login flow, and why its order matters
@@ -178,6 +178,7 @@ All extend `DomainException` (in `src/shared/domain/`) and are mapped by `Domain
 | `AccountAlreadyExistsException` | 400 |
 | `AccountAlreadyActiveException` | 409 |
 | `AccountAlreadyInactiveException` | 409 |
+| `CannotDeactivateOwnAccountException` | 409 |
 | `AccountLockedException` | 423 |
 
 There must be **exactly one** `DomainException` class: `@Catch(DomainException)` matches on class identity, so a second copy makes the filter silently stop matching and every domain error becomes a `500` with a leaked stack. `domain-exception.filter.spec.ts` asserts all of the above are `instanceof` the shared base class.
@@ -257,7 +258,7 @@ src/iam/
 ├── domain/
 │   ├── account.model.ts              # rich entity + LockoutPolicy
 │   ├── enums/{account-status,user-roles}
-│   └── exceptions/                   # 9 DomainException subclasses
+│   └── exceptions/                   # 10 DomainException subclasses
 ├── application/
 │   ├── ports/{account.repository.interface,accounts-query,
 │   │           password-hasher.port,token.service.port,

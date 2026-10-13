@@ -1,4 +1,4 @@
-import { INestApplication } from '@nestjs/common';
+import { ExecutionContext, INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { App } from 'supertest/types';
@@ -21,6 +21,7 @@ const ACTIVE_ID = '11111111-1111-4111-8111-111111111111';
 const PENDING_ID = '22222222-2222-4222-8222-222222222222';
 const INACTIVE_ID = '33333333-3333-4333-8333-333333333333';
 const MISSING_ID = '44444444-4444-4444-8444-444444444444';
+const ADMIN_ID = '99999999-9999-4999-8999-999999999999';
 
 interface AccountsResponse {
   data: { id: string; email: string; role: string; status: string }[];
@@ -90,7 +91,17 @@ describe('AccountController', () => {
       ],
     })
       .overrideGuard(JwtAuthGuard)
-      .useValue({ canActivate: () => true })
+      .useValue({
+        // Stands in for JwtStrategy: the real guard attaches the signed-in user.
+        canActivate: (context: ExecutionContext) => {
+          context.switchToHttp().getRequest<{ user: unknown }>().user = {
+            id: ADMIN_ID,
+            email: 'admin@fdff.test',
+            role: UserRoles.ADMIN,
+          };
+          return true;
+        },
+      })
       .overrideGuard(RolesGuard)
       .useValue({ canActivate: () => true })
       .compile();
@@ -313,6 +324,27 @@ describe('AccountController', () => {
       await request(app.getHttpServer())
         .post(`/api/accounts/deactivate/${MISSING_ID}`)
         .expect(404);
+    });
+
+    it('returns 409 when an admin tries to deactivate themselves', async () => {
+      await repo.update(
+        makeAccount({
+          id: ADMIN_ID,
+          email: 'admin@fdff.test',
+          role: UserRoles.ADMIN,
+          status: AccountStatus.ACTIVE,
+        }),
+      );
+
+      const res = await request(app.getHttpServer())
+        .post(`/api/accounts/deactivate/${ADMIN_ID}`)
+        .expect(409);
+      const body = res.body as ErrorResponse;
+
+      expect(body.error).toBe('CannotDeactivateOwnAccountException');
+      expect((await repo.findById(ADMIN_ID))?.status).toBe(
+        AccountStatus.ACTIVE,
+      );
     });
   });
 });
