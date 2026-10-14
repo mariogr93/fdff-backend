@@ -234,14 +234,13 @@ Password policy: 8–20 characters, `@IsPasswordStrong` (see `shared/validators/
 ## 11. Not implemented — do not assume it exists
 
 - No OpenAPI/Swagger spec; frontend API types are hand-written.
-- No `jti`/denylist, so a stolen access token is valid until `exp`.
-- No token-family revocation when a rotated refresh token is replayed.
-- No refresh concurrency control — two tabs refreshing at once can race.
+- No `jti`/denylist, so a stolen access token is valid until `exp` (deactivation still revokes it at once, because `JwtStrategy` reloads the account).
+- Reuse detection recognises only the immediately previous refresh token, not the whole token family.
 - No email verification, password reset, or password change.
 - No audit log of account changes.
-- No "cannot deactivate the last admin" or "cannot deactivate yourself" rule. Those need the acting user or a repository count, so they belong in the use case, not the entity.
+- No "cannot deactivate the last admin" rule. "Cannot deactivate yourself" is enforced in `DeactivateAccountUseCase`.
 - No CI, no Supabase, no Traefik.
-- Open findings live in `DevSecOps_SecurityAudit.md`; some entries predate the current code.
+- Known gaps and accepted trade-offs: `docs/KNOWN-GAPS.md`.
 
 ## 12. Next slices, in dependency order
 
