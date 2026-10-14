@@ -8,7 +8,7 @@ Super Users: System admins who provision judge accounts.
 
 Judges / Officials: Manage categories, approve/reject athletes, create events, and oversee weigh-ins.
 
-Athletes / Coaches: Register for the federation (Cédula de Competidor) and sign up for specific events.
+Athletes / Coaches: Register for the federation with their cédula (Dominican national ID) and sign up for specific events.
 
 Public / Spectators: View past event results and upcoming event details.
 
@@ -25,7 +25,7 @@ Sanctioned Event / Competition: An official federation show.
 
 Check-In / Weigh-In: The physical validation process of an athlete's parameters against a category's rules.
 
-Federation ID (Cédula de Competidor): The unique identifier used to auto-fill athlete data.
+Cédula: The Dominican national ID (11 digits, stored without hyphens, unique per athlete), used to auto-fill athlete data.
 
 3. Technology Stack
 Frontend: ReactJS + Vite + TypeScript (Admin panel and public-facing app).
