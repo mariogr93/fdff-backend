@@ -181,7 +181,7 @@ All extend `DomainException` (in `src/shared/domain/`) and are mapped by `Domain
 | `CannotDeactivateOwnAccountException` | 409 |
 | `AccountLockedException` | 423 |
 
-There must be **exactly one** `DomainException` class: `@Catch(DomainException)` matches on class identity, so a second copy makes the filter silently stop matching and every domain error becomes a `500` with a leaked stack. `domain-exception.filter.spec.ts` asserts all of the above are `instanceof` the shared base class.
+There must be **exactly one** `DomainException` class: `@Catch(DomainException)` matches on class identity, so a second copy makes the filter silently stop matching and every domain error becomes a `500` with a leaked stack. `src/iam/domain/exceptions/exceptions.spec.ts` loads every `*.exception.ts` file in that folder and asserts each export extends the shared base class with a 4xx status, so a new exception is checked automatically. The shared filter spec uses a local stand-in and imports no slice.
 
 ## 8. Protecting a new endpoint
 
