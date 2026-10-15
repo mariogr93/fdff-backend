@@ -5,15 +5,16 @@ Tactical DDD with vertical slices. No global `controllers/` or `services/` folde
 ```
 src/
 ├── main.ts              # thin: delegates to configure-app.ts
-├── configure-app.ts     # cookie parser, /api prefix, CORS, helmet, ValidationPipe,
-│                        #   DomainExceptionFilter; shared with e2e tests
+├── configure-app.ts     # JSON-only bodies, cookie parser, /api prefix, CORS allowlist,
+│                        #   helmet, ValidationPipe, DomainExceptionFilter; shared with e2e tests
 ├── app.module.ts        # global ThrottlerGuard (100 req/min)
 ├── scripts/             # composition roots: seed-admin.ts
 ├── shared/              # cross-cutting, depends on no slice
-│   ├── config/          # validate-env.ts
+│   ├── config/          # validate-env.ts, allowed-origins.ts
 │   ├── domain/          # DomainException, the one base class
 │   ├── database/        # data-source.ts (CLI), database.module.ts, migrations/
 │   ├── filters/         # DomainExceptionFilter
+│   ├── http/            # require-json-body middleware
 │   └── validators/      # @IsPasswordStrong
 └── iam/
     ├── domain/          # account.model.ts, normalize-email.ts, enums/, exceptions/

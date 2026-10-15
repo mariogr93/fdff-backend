@@ -8,6 +8,7 @@ import {
   Req,
   Res,
   UnauthorizedException,
+  UseGuards,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import {
@@ -26,6 +27,7 @@ import {
 import { LoginDto } from './dtos/login.dto';
 import { RegisterAccountDto } from './dtos/register-account.dto';
 import { LogoutAccountUseCase } from '../application/use-cases/logout-account.use-case';
+import { SameOriginGuard } from './guards/same-origin.guard';
 
 /** cookie-parser types req.cookies as `any`; narrow it in one place. */
 const readRefreshCookie = (req: Request): string | undefined => {
@@ -34,6 +36,7 @@ const readRefreshCookie = (req: Request): string | undefined => {
 };
 
 @Controller('auth')
+@UseGuards(SameOriginGuard)
 export class AuthController {
   constructor(
     private readonly registerAccount: RegisterAccountUseCase,

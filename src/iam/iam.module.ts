@@ -30,6 +30,7 @@ import { CreateAccountUseCase } from './application/use-cases/create-account.use
 import { DeactivateAccountUseCase } from './application/use-cases/deactivate-account.use-case';
 import { RolesGuard } from './presentation/guards/roles.guard';
 import { JwtAuthGuard } from './presentation/guards/jwt-auth.guard';
+import { SameOriginGuard } from './presentation/guards/same-origin.guard';
 import { LogoutAccountUseCase } from './application/use-cases/logout-account.use-case';
 
 @Module({
@@ -61,6 +62,7 @@ import { LogoutAccountUseCase } from './application/use-cases/logout-account.use
     JwtStrategy,
     RolesGuard,
     JwtAuthGuard,
+    SameOriginGuard,
     RegisterAccountUseCase,
     LoginAccountUseCase,
     LogoutAccountUseCase,

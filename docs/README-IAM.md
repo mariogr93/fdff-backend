@@ -32,6 +32,10 @@ All routes are under the global `/api` prefix.
 | `POST` | `/auth/logout` | none (cookie only) | 5 / min | `200` |
 | `POST` | `/auth/refresh` | none (cookie only) | 10 / min | `200` |
 
+**Cross-site requests.** `SameOriginGuard` sits on the whole `AuthController`, because `SameSite=Strict` only protects routes that need the cookie, and login, logout and register need none (login CSRF would sign the victim in as the attacker). A request whose `Origin` is not in `FRONTEND_URL` gets `403` (`CrossOriginRequestException`) before any use case runs. Browsers send `Origin` on every POST. With no `Origin`, a request passes unless the browser marked it `Sec-Fetch-Site: cross-site`; curl and servers send neither header and pass.
+
+**JSON only.** `requireJsonBody` (registered in `configureApp`, before Nest's body parsers) answers `415` to any request that has a body that is not `application/json`, so a hostile HTML form cannot post to any route. Empty bodies pass: browsers send `Content-Length: 0` and no `Content-Type` on logout and refresh.
+
 ### `AccountController` — `/api/accounts`
 
 Guards are applied **at class level** (`JwtAuthGuard`, `RolesGuard`, `@Roles(ADMIN)`), so a new method cannot be added unguarded.
@@ -230,6 +234,7 @@ Password policy: 8–20 characters, `@IsPasswordStrong` (see `shared/validators/
 5. **Rotation on every refresh.** Reusing a hash defeats the design.
 6. **Domain stays framework-free**, and `shared/` stays slice-free.
 7. **`synchronize` stays `false`.** Schema changes are migrations, reviewed before running.
+8. **The auth routes stay JSON-only and behind `SameOriginGuard`.** Removing either reopens cross-site login and logout.
 
 ## 11. Not implemented — do not assume it exists
 

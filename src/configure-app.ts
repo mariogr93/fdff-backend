@@ -3,9 +3,12 @@ import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 import { resolveAllowedOrigins } from './shared/config/allowed-origins';
 import { DomainExceptionFilter } from './shared/filters/domain-exception.filter';
+import { requireJsonBody } from './shared/http/require-json-body';
 
 /** Shared by bootstrap() and e2e tests so both exercise the same HTTP pipeline. */
 export function configureApp(app: INestApplication): INestApplication {
+  // Before Nest registers its body parsers (that happens in app.init()).
+  app.use(requireJsonBody);
   app.use(cookieParser());
   app.setGlobalPrefix('api');
 
