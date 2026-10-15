@@ -135,7 +135,6 @@ $ npm run test:cov
 | Domain, ubiquitous language, target architecture | [docs/PROJECT_CONTEXT.md](docs/PROJECT_CONTEXT.md) |
 | IAM reference: endpoints, flows, exceptions, env vars | [docs/README-IAM.md](docs/README-IAM.md) |
 | Pending data-model decisions | [docs/architecture/backend-implications.md](docs/architecture/backend-implications.md) |
-| What changed and why | [docs/nestjs-auth-changelog.md](docs/nestjs-auth-changelog.md) |
 
 ## Notes
 
