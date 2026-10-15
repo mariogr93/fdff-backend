@@ -213,11 +213,11 @@ There must be **exactly one** `DomainException` class: `@Catch(DomainException)`
 | `REFRESH_TOKEN_EXPIRES_DAYS` | `1` | Days a refresh token stays valid (cookie max-age; also the server-side expiry once enforced). Sliding: each refresh restarts it |
 | `SALT_ROUNDS` | `10` | bcrypt cost |
 | `NODE_ENV` | **required** | `development`, `production` or `test`; refresh cookie is `Secure` in every environment except `development` |
-| `FRONTEND_URL` | `http://localhost:5173` | CORS origin (single value, not an allowlist) |
+| `FRONTEND_URL` | `http://localhost:5173` in development and test only; **required in production** | CORS allowlist: comma-separated origins (`scheme://host[:port]`, no path, trailing slash or wildcard). An origin not on the list gets no CORS headers |
 | `PORT` | `3000` | HTTP port |
 | `ADMIN_EMAIL` / `ADMIN_PASSWORD` | — | `npm run db:seed` only. The email is lowercased; the password must meet the signup strength rule (8-20 characters, upper, lower, digit, special) or the seed refuses |
 
-Startup validation (`src/shared/config/validate-env.ts`) refuses to boot, and the TypeORM CLI refuses to run, if a required variable is missing or if `DB_PORT`, `SALT_ROUNDS` or `REFRESH_TOKEN_EXPIRES_DAYS` is set but not a positive integer. The error names variables, never values.
+Startup validation (`src/shared/config/validate-env.ts`) refuses to boot, and the TypeORM CLI refuses to run, if a required variable is missing, if `DB_PORT`, `SALT_ROUNDS` or `REFRESH_TOKEN_EXPIRES_DAYS` is set but not a positive integer, if `FRONTEND_URL` is missing in production, or if it holds anything but bare origins. The error names variables, never values.
 
 Password policy: 8–20 characters, `@IsPasswordStrong` (see `shared/validators/`), aligned with the React signup schema. The 20-character cap blocks passphrases and is worth revisiting.
 
