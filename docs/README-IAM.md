@@ -23,6 +23,8 @@ It is the first vertical slice and underpins every future one.
 
 All routes are under the global `/api` prefix.
 
+**OpenAPI.** Outside production, `main.ts` serves the Swagger UI at `/api/docs` and the raw spec at `/api/docs-json` (`shared/http/setup-openapi.ts`). In production both are `404`: the spec maps every route. The `@nestjs/swagger` build plugin (`nest-cli.json`) reads the `class-validator` decorators of every `*.dto.ts`, so request and response schemas come from the DTOs; controllers declare `*.dto.ts` response classes as their return types for that reason. The frontend can generate its types from the spec, for example `npx openapi-typescript http://localhost:3000/api/docs-json -o src/types/api.ts`. `openapi.spec.ts` checks that every route and its security scheme are in the document.
+
 ### `AuthController` — `/api/auth`
 
 | Method | Path | Guards | Throttle | Success |
@@ -241,7 +243,6 @@ Password policy: 8–20 characters, `@IsPasswordStrong` (see `shared/validators/
 
 ## 11. Not implemented — do not assume it exists
 
-- No OpenAPI/Swagger spec; frontend API types are hand-written.
 - No per-token revocation: revoking works per account (`tokenVersion`), so it cannot cancel one device's access token and keep another's.
 - Reuse detection recognises only the immediately previous refresh token, not the whole token family.
 - No email verification, password reset, or password change.

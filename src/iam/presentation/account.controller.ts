@@ -11,18 +11,39 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
+import {
+  ApiBearerAuth,
+  ApiConflictResponse,
+  ApiForbiddenResponse,
+  ApiNoContentResponse,
+  ApiNotFoundResponse,
+  ApiOperation,
+  ApiTags,
+  ApiUnauthorizedResponse,
+} from '@nestjs/swagger';
 import type { Request } from 'express';
+import { BEARER_AUTH } from '../../shared/http/setup-openapi';
 import type { AuthenticatedUser } from '../application/ports/authenticated-user';
 import { ActivateAccountUseCase } from '../application/use-cases/activate-account.use-case';
 import { CreateAccountUseCase } from '../application/use-cases/create-account.use-case';
 import { DeactivateAccountUseCase } from '../application/use-cases/deactivate-account.use-case';
 import { GetAccountsUseCase } from '../application/use-cases/get-accounts.use-case';
 import { UserRoles } from '../domain/enums/user-roles.enums';
+import {
+  AccountResponseDto,
+  AccountsPageResponseDto,
+} from './dtos/account-response.dto';
 import { AccountsListRequestDto } from './dtos/accounts-list-request.dto';
 import { CreateAccountDto } from './dtos/create-account.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { Roles, RolesGuard } from './guards/roles.guard';
 
+@ApiTags('accounts')
+@ApiBearerAuth(BEARER_AUTH)
+@ApiUnauthorizedResponse({
+  description: 'Missing, expired or revoked access token.',
+})
+@ApiForbiddenResponse({ description: 'The caller is not an ADMIN.' })
 @Controller('accounts')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(UserRoles.ADMIN)
@@ -35,7 +56,10 @@ export class AccountController {
   ) {}
 
   @Get()
-  async getAccounts(@Query() query: AccountsListRequestDto) {
+  @ApiOperation({ summary: 'List accounts, filtered and paginated.' })
+  async getAccounts(
+    @Query() query: AccountsListRequestDto,
+  ): Promise<AccountsPageResponseDto> {
     const { rows, total } = await this.getAccountsUseCase.execute(query);
     const page = query.page ?? 1;
     const limit = query.limit ?? 10;
@@ -61,7 +85,12 @@ export class AccountController {
    */
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  async createAccount(@Body() dto: CreateAccountDto) {
+  @ApiOperation({
+    summary: 'Create an account with any role. It is ACTIVE immediately.',
+  })
+  async createAccount(
+    @Body() dto: CreateAccountDto,
+  ): Promise<AccountResponseDto> {
     const account = await this.createAccountUseCase.execute({
       email: dto.email,
       plainPassword: dto.password,
@@ -80,6 +109,10 @@ export class AccountController {
   // Postgres reject it as invalid uuid syntax and surface a 500.
   @Post('activate/:accountId')
   @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'PENDING or INACTIVE becomes ACTIVE.' })
+  @ApiNoContentResponse({ description: 'Activated.' })
+  @ApiNotFoundResponse({ description: 'No account with that id.' })
+  @ApiConflictResponse({ description: 'The account is already active.' })
   async activateAccount(
     @Param('accountId', ParseUUIDPipe) accountId: string,
   ): Promise<void> {
@@ -88,6 +121,16 @@ export class AccountController {
 
   @Post('deactivate/:accountId')
   @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary:
+      'Disable an account, end its session and revoke its access tokens. Rejects a PENDING signup.',
+  })
+  @ApiNoContentResponse({ description: 'Deactivated.' })
+  @ApiNotFoundResponse({ description: 'No account with that id.' })
+  @ApiConflictResponse({
+    description:
+      'Already inactive, your own account, or the last active admin.',
+  })
   async deactivateAccount(
     @Param('accountId', ParseUUIDPipe) accountId: string,
     @Req() req: Request & { user: AuthenticatedUser },

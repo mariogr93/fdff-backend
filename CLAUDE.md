@@ -42,7 +42,9 @@ npm run migration:run
 - Plan first when a change touches more than one file. Keep one slice per change.
 - The code wins over the docs. Verify against a test or the running API, then fix the doc in the same change.
 - Ask when a business rule is ambiguous, and record the answer in `docs/architecture/backend-implications.md`. Read that file before changing entities.
-- Do not invent endpoints. Propose a package before adding it (`@nestjs/swagger` and `@supabase/supabase-js` are not installed).
+- Do not invent endpoints. Propose a package before adding it (`@supabase/supabase-js` is not installed).
+- The OpenAPI spec is served at `/api/docs` (UI) and `/api/docs-json` outside production. Document new routes with `@nestjs/swagger` decorators in `presentation/` only, and return a `*.dto.ts` response class so the build plugin can describe it.
+- Run tests with `npm test` / `npm run test:e2e`, never `jest` directly: NestJS 12 is ESM-only and the scripts add the Node flag Jest needs.
 
 ## Read more
 

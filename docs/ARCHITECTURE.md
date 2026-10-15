@@ -14,7 +14,7 @@ src/
 │   ├── domain/          # DomainException, the one base class
 │   ├── database/        # data-source.ts (CLI), database.module.ts, migrations/
 │   ├── filters/         # DomainExceptionFilter
-│   ├── http/            # require-json-body middleware
+│   ├── http/            # require-json-body middleware, setup-openapi.ts (Swagger, not in production)
 │   └── validators/      # @IsPasswordStrong
 └── iam/
     ├── domain/          # account.model.ts, normalize-email.ts, enums/, exceptions/
