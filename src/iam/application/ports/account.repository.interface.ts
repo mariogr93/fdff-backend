@@ -1,4 +1,6 @@
 import { Account } from '../../domain/account.model';
+import { AccountStatus } from '../../domain/enums/account-status.enum';
+import { UserRoles } from '../../domain/enums/user-roles.enums';
 import { AccountsQuery } from './accounts-query';
 
 export const I_ACCOUNT_REPOSITORY = 'I_ACCOUNT_REPOSITORY';
@@ -31,4 +33,6 @@ export interface IAccountRepository {
     expectedHash: string,
   ): Promise<boolean>;
   findMany(query: AccountsQuery): Promise<AccountsPage>;
+  /** How many accounts have this role and status. Used by rules that must not leave a role empty. */
+  countByRoleAndStatus(role: UserRoles, status: AccountStatus): Promise<number>;
 }

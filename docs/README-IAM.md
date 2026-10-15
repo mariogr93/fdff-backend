@@ -136,7 +136,7 @@ Repository methods: `findById`, `findByEmail`, `findByRefreshTokenHash`, `findBy
 | `LoginAccountUseCase` | lockout, timing-safe compare, active-only, rotation |
 | `RefreshAccountUseCase` | hash lookup, active-only, server-side expiry, single-use rotation (guarded write), opaque failure |
 | `LogoutAccountUseCase` | nulls the stored hash; tolerates a missing/unknown token |
-| `ActivateAccountUseCase` / `DeactivateAccountUseCase` | existence → `404`, then the domain transition. Deactivate first refuses `actorId === accountId` (`409`); "last admin must remain" is not enforced |
+| `ActivateAccountUseCase` / `DeactivateAccountUseCase` | existence → `404`, then the domain transition. Deactivate first refuses `actorId === accountId` (`409`), and refuses to deactivate the last active `ADMIN` (`409`, `LastAdminException`; counted through `countByRoleAndStatus`, not atomic with the write) |
 | `GetAccountsUseCase` | always paginated |
 
 ### Login flow, and why its order matters
@@ -183,6 +183,7 @@ All extend `DomainException` (in `src/shared/domain/`) and are mapped by `Domain
 | `AccountAlreadyActiveException` | 409 |
 | `AccountAlreadyInactiveException` | 409 |
 | `CannotDeactivateOwnAccountException` | 409 |
+| `LastAdminException` | 409 |
 | `AccountLockedException` | 423 |
 
 There must be **exactly one** `DomainException` class: `@Catch(DomainException)` matches on class identity, so a second copy makes the filter silently stop matching and every domain error becomes a `500` with a leaked stack. `src/iam/domain/exceptions/exceptions.spec.ts` loads every `*.exception.ts` file in that folder and asserts each export extends the shared base class with a 4xx status, so a new exception is checked automatically. The shared filter spec uses a local stand-in and imports no slice.
@@ -243,7 +244,6 @@ Password policy: 8–20 characters, `@IsPasswordStrong` (see `shared/validators/
 - Reuse detection recognises only the immediately previous refresh token, not the whole token family.
 - No email verification, password reset, or password change.
 - No audit log of account changes.
-- No "cannot deactivate the last admin" rule. "Cannot deactivate yourself" is enforced in `DeactivateAccountUseCase`.
 - No CI, no Supabase, no Traefik.
 - Known gaps and accepted trade-offs: `docs/KNOWN-GAPS.md`.
 

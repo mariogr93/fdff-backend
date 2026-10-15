@@ -1,4 +1,6 @@
 import { AccountStatus } from '../../domain/enums/account-status.enum';
+import { UserRoles } from '../../domain/enums/user-roles.enums';
+import { LastAdminException } from '../../domain/exceptions/last-admin.exception';
 import { AccountAlreadyInactiveException } from '../../domain/exceptions/account-already-inactive.exception';
 import { AccountNotFoundException } from '../../domain/exceptions/account-not-found.exception';
 import { CannotDeactivateOwnAccountException } from '../../domain/exceptions/cannot-deactivate-own-account.exception';
@@ -107,5 +109,91 @@ describe('DeactivateAccountUseCase', () => {
 
   it('reports the refusal as 409', () => {
     expect(new CannotDeactivateOwnAccountException().statusCode).toBe(409);
+  });
+
+  describe('the last active admin must remain', () => {
+    const OTHER_ADMIN_ID = '55555555-5555-4555-8555-555555555555';
+    const admin = (id: string, email: string, status = AccountStatus.ACTIVE) =>
+      makeAccount({ id, email, role: UserRoles.ADMIN, status });
+
+    it('refuses to deactivate the only active admin', async () => {
+      const repo = new FakeAccountRepository([
+        admin(TARGET_ID, 'only@fdff.test'),
+        makeAccount({ id: ADMIN_ID, role: UserRoles.JUDGE, email: 'j@x.test' }),
+      ]);
+
+      await expect(
+        new DeactivateAccountUseCase(repo).execute({
+          accountId: TARGET_ID,
+          actorId: ADMIN_ID,
+        }),
+      ).rejects.toThrow(LastAdminException);
+      expect((await repo.findById(TARGET_ID))?.status).toBe(
+        AccountStatus.ACTIVE,
+      );
+    });
+
+    it('allows deactivating an admin while another stays active', async () => {
+      const repo = new FakeAccountRepository([
+        admin(TARGET_ID, 'a@fdff.test'),
+        admin(OTHER_ADMIN_ID, 'b@fdff.test'),
+      ]);
+
+      await new DeactivateAccountUseCase(repo).execute({
+        accountId: TARGET_ID,
+        actorId: OTHER_ADMIN_ID,
+      });
+
+      expect((await repo.findById(TARGET_ID))?.status).toBe(
+        AccountStatus.INACTIVE,
+      );
+      expect((await repo.findById(OTHER_ADMIN_ID))?.status).toBe(
+        AccountStatus.ACTIVE,
+      );
+    });
+
+    it('does not count an inactive admin as one that remains', async () => {
+      const repo = new FakeAccountRepository([
+        admin(TARGET_ID, 'a@fdff.test'),
+        admin(OTHER_ADMIN_ID, 'b@fdff.test', AccountStatus.INACTIVE),
+      ]);
+
+      await expect(
+        new DeactivateAccountUseCase(repo).execute({
+          accountId: TARGET_ID,
+          actorId: ADMIN_ID,
+        }),
+      ).rejects.toThrow(LastAdminException);
+    });
+
+    it('does not apply to judges and athletes, even with no admin left', async () => {
+      const repo = new FakeAccountRepository([
+        makeAccount({ id: TARGET_ID, role: UserRoles.JUDGE }),
+      ]);
+
+      await expect(
+        new DeactivateAccountUseCase(repo).execute({
+          accountId: TARGET_ID,
+          actorId: ADMIN_ID,
+        }),
+      ).resolves.toBeUndefined();
+    });
+
+    it('still reports an already-inactive admin as inactive, not as the last admin', async () => {
+      const repo = new FakeAccountRepository([
+        admin(TARGET_ID, 'a@fdff.test', AccountStatus.INACTIVE),
+      ]);
+
+      await expect(
+        new DeactivateAccountUseCase(repo).execute({
+          accountId: TARGET_ID,
+          actorId: ADMIN_ID,
+        }),
+      ).rejects.toThrow(AccountAlreadyInactiveException);
+    });
+
+    it('reports the refusal as 409', () => {
+      expect(new LastAdminException().statusCode).toBe(409);
+    });
   });
 });

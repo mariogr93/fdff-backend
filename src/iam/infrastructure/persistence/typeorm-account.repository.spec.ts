@@ -1,4 +1,6 @@
 import { Repository } from 'typeorm';
+import { AccountStatus } from '../../domain/enums/account-status.enum';
+import { UserRoles } from '../../domain/enums/user-roles.enums';
 import { AccountAlreadyExistsException } from '../../domain/exceptions/account-already-exists.exception';
 import { makeAccount } from '../../testing/account.fixture';
 import { AccountOrmEntity } from './account.orm-entity';
@@ -34,6 +36,24 @@ describe('TypeOrmAccountRepository', () => {
       const insert = jest.fn().mockRejectedValue(failure);
 
       await expect(build({ insert }).save(makeAccount())).rejects.toBe(failure);
+    });
+  });
+
+  describe('countByRoleAndStatus', () => {
+    it('counts rows with exactly that role and status', async () => {
+      const count = jest.fn().mockResolvedValue(2);
+
+      const result = await new TypeOrmAccountRepository({
+        count,
+      } as unknown as Repository<AccountOrmEntity>).countByRoleAndStatus(
+        UserRoles.ADMIN,
+        AccountStatus.ACTIVE,
+      );
+
+      expect(result).toBe(2);
+      expect(count).toHaveBeenCalledWith({
+        where: { role: UserRoles.ADMIN, status: AccountStatus.ACTIVE },
+      });
     });
   });
 

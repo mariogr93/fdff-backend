@@ -22,6 +22,7 @@ const PENDING_ID = '22222222-2222-4222-8222-222222222222';
 const INACTIVE_ID = '33333333-3333-4333-8333-333333333333';
 const MISSING_ID = '44444444-4444-4444-8444-444444444444';
 const ADMIN_ID = '99999999-9999-4999-8999-999999999999';
+const LAST_ADMIN_ID = '88888888-8888-4888-8888-888888888888';
 
 interface AccountsResponse {
   data: { id: string; email: string; role: string; status: string }[];
@@ -343,6 +344,27 @@ describe('AccountController', () => {
 
       expect(body.error).toBe('CannotDeactivateOwnAccountException');
       expect((await repo.findById(ADMIN_ID))?.status).toBe(
+        AccountStatus.ACTIVE,
+      );
+    });
+
+    it('returns 409 when the target is the last active admin', async () => {
+      await repo.update(
+        makeAccount({
+          id: LAST_ADMIN_ID,
+          email: 'last-admin@fdff.test',
+          role: UserRoles.ADMIN,
+          status: AccountStatus.ACTIVE,
+        }),
+      );
+
+      const res = await request(app.getHttpServer())
+        .post(`/api/accounts/deactivate/${LAST_ADMIN_ID}`)
+        .expect(409);
+      const body = res.body as ErrorResponse;
+
+      expect(body.error).toBe('LastAdminException');
+      expect((await repo.findById(LAST_ADMIN_ID))?.status).toBe(
         AccountStatus.ACTIVE,
       );
     });

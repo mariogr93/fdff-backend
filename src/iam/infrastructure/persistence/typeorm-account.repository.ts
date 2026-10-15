@@ -10,6 +10,8 @@ import {
   AccountsSortOrder,
 } from '../../application/ports/accounts-query';
 import { Account } from '../../domain/account.model';
+import { AccountStatus } from '../../domain/enums/account-status.enum';
+import { UserRoles } from '../../domain/enums/user-roles.enums';
 import { AccountAlreadyExistsException } from '../../domain/exceptions/account-already-exists.exception';
 import { AccountOrmEntity } from './account.orm-entity';
 
@@ -97,6 +99,13 @@ export class TypeOrmAccountRepository implements IAccountRepository {
     });
 
     return { rows: rows.map((row) => this.toDomain(row)), total };
+  }
+
+  countByRoleAndStatus(
+    role: UserRoles,
+    status: AccountStatus,
+  ): Promise<number> {
+    return this.repository.count({ where: { role, status } });
   }
 
   private toDomain(row: AccountOrmEntity): Account {

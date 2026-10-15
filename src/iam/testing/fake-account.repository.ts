@@ -4,6 +4,8 @@ import {
 } from '../application/ports/account.repository.interface';
 import { AccountsQuery } from '../application/ports/accounts-query';
 import { Account } from '../domain/account.model';
+import { AccountStatus } from '../domain/enums/account-status.enum';
+import { UserRoles } from '../domain/enums/user-roles.enums';
 import { AccountAlreadyExistsException } from '../domain/exceptions/account-already-exists.exception';
 
 /**
@@ -80,6 +82,15 @@ export class FakeAccountRepository implements IAccountRepository {
       rows: matches.slice(offset, offset + limit),
       total: matches.length,
     });
+  }
+
+  countByRoleAndStatus(
+    role: UserRoles,
+    status: AccountStatus,
+  ): Promise<number> {
+    return Promise.resolve(
+      this.list().filter((a) => a.role === role && a.status === status).length,
+    );
   }
 
   private list(): Account[] {
