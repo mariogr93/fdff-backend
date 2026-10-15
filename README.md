@@ -91,7 +91,9 @@ POST /api/accounts/activate/:accountId
 POST /api/accounts/deactivate/:accountId
 ```
 
-Activation accepts `PENDING` or `INACTIVE` and returns `409` if the account is already active; deactivation also clears the stored refresh token, so an open session cannot be extended.
+Activation accepts `PENDING` or `INACTIVE` and returns `409` if the account is already active. Deactivation ends the session and revokes the account's access tokens at once; it returns `409` for your own account or the last active admin.
+
+**API docs:** with the API running outside production, the Swagger UI is at `http://localhost:3000/api/docs` and the raw OpenAPI spec at `/api/docs-json`.
 
 See [docs/README-IAM.md](docs/README-IAM.md) for the full IAM reference — flows, exception-to-status mapping, and how to protect a new endpoint. [CLAUDE.md](CLAUDE.md) is the entry point for AI assistants.
 
@@ -134,6 +136,9 @@ $ npm run test:cov
 | Project overview, rules, conventions | [CLAUDE.md](CLAUDE.md) |
 | Domain, ubiquitous language, target architecture | [docs/PROJECT_CONTEXT.md](docs/PROJECT_CONTEXT.md) |
 | IAM reference: endpoints, flows, exceptions, env vars | [docs/README-IAM.md](docs/README-IAM.md) |
+| Client contract for the frontend | [docs/README-IAM.md, section 14](docs/README-IAM.md#14-client-contract-for-fdff-front) |
+| Glossary and business rules | [docs/DOMAIN.md](docs/DOMAIN.md) |
+| Folder layout, conventions, testing | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
 | Pending data-model decisions | [docs/architecture/backend-implications.md](docs/architecture/backend-implications.md) |
 
 ## Notes

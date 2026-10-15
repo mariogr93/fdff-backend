@@ -3,7 +3,7 @@
 > **Bounded context:** Identity & Access Management.
 > **Ubiquitous term:** `Account` (not "User") — a system identity with credentials and an RBAC role.
 > **Scope:** this is the single reference for the IAM slice. It replaces the former `nestjs-auth-docs.md` and `ai-auth-context.md`, which described the same module twice more and drifted.
-> **Last verified against the code:** 2026-10-05.
+> **Last verified against the code:** 2026-10-15 (NestJS 12, Node 24). Frontend developers: start with section 14, the client contract.
 
 ---
 
@@ -47,7 +47,7 @@ Guards are applied **at class level** (`JwtAuthGuard`, `RolesGuard`, `@Roles(ADM
 | `GET` | `/accounts` | `200` | Paginated `{ data, total, page, limit }`; filters `email` (fragment), `role`, `status`, `page`, `limit`, `sortOrder` |
 | `POST` | `/accounts` | `201` | Explicit role, created `ACTIVE` |
 | `POST` | `/accounts/activate/:accountId` | `204` | `PENDING` or `INACTIVE` → `ACTIVE` |
-| `POST` | `/accounts/deactivate/:accountId` | `204` | Also clears the refresh token |
+| `POST` | `/accounts/deactivate/:accountId` | `204` | Ends the session and revokes its access tokens at once. `409` for your own account, the last active admin, or an already inactive one |
 
 `:accountId` goes through `ParseUUIDPipe`, so a malformed id is a `400` rather than a Postgres error surfacing as `500`.
 
@@ -73,7 +73,7 @@ A global `ThrottlerGuard` adds an app-wide 100 req/min (`app.module.ts`).
 - Access tokens are **RS256**, signed with the private key; the payload is `{ sub, email, tv }`: identity plus `tv`, the account's `tokenVersion` when the token was issued. **Role is deliberately not a claim.** `RolesGuard` reads the freshly-loaded `Account`, so a demoted or deactivated admin loses access on the next request instead of at token expiry. Do not "optimise" that database read away.
 - **Revoking access tokens without a denylist.** `JwtStrategy` rejects a token whose `tv` differs from the account's current `tokenVersion` (`401`). Logout, deactivation and refresh-reuse detection raise the version, so every access token issued so far stops working at once instead of at expiry. Login and refresh do not raise it: they sign with the current value. Because the version belongs to the account, a logout on one device ends the access tokens of its other sessions too. A token with no `tv` (issued before the column existed) is rejected.
 - The refresh token is an opaque 64-char random string. Only its hash is stored, so a database leak does not yield usable tokens.
-- Cookie options: `httpOnly`, `sameSite: 'strict'`, `secure` in production, `path: '/api/auth'`. Set and clear must use matching options or the cookie will not clear.
+- Cookie options: `httpOnly`, `sameSite: 'strict'`, `path: '/api/auth'`, and `secure` in every environment except `NODE_ENV=development` (so a production or test build needs HTTPS for the cookie to be sent). Set and clear must use matching options or the cookie will not clear.
 - **Rotation:** every successful `/auth/refresh` issues a new refresh token and overwrites the stored hash, so the previous one stops working immediately.
 
 ## 4. Domain model
@@ -107,7 +107,7 @@ A global `ThrottlerGuard` adds an app-wide 100 req/min (`app.module.ts`).
 | `PENDING` → `ACTIVE` | allowed (approve a registration) |
 | `INACTIVE` → `ACTIVE` | allowed (reinstate — the admin page is a toggle) |
 | `ACTIVE` → `ACTIVE` | `AccountAlreadyActiveException` → `409` |
-| `ACTIVE` / `PENDING` → `INACTIVE` | allowed; also clears `refreshTokenHash` and `refreshTokenExpiresAt` |
+| `ACTIVE` / `PENDING` → `INACTIVE` | allowed; also clears the refresh token fields and raises `tokenVersion`, so existing access tokens stop working. Refused for the last active `ADMIN` and for your own account (`409`, checked in the use case) |
 | `INACTIVE` → `INACTIVE` | `AccountAlreadyInactiveException` → `409` |
 
 Deactivating a `PENDING` account is how a registration is rejected — the enum has no `REJECTED` value.
@@ -122,7 +122,7 @@ Deactivating a `PENDING` account is how a registration is rejected — the enum 
 | `IRefreshTokenServicePort` | `Symbol('I_REFRESH_TOKEN_SERVICE')` | `RefreshTokenService` |
 | `AuthPolicy` | `Symbol('I_AUTH_POLICY')` | factory in `iam.module.ts` |
 
-Repository methods: `findById`, `findByEmail`, `findByRefreshTokenHash`, `findByPreviousRefreshTokenHash`, `save`, `update`, `updateIfRefreshTokenHashIs(account, expectedHash) → boolean`, `findMany(query) → { rows, total }`.
+Repository methods: `findById`, `findByEmail`, `findByRefreshTokenHash`, `findByPreviousRefreshTokenHash`, `save`, `update`, `updateIfRefreshTokenHashIs(account, expectedHash) → boolean`, `findMany(query) → { rows, total }`, `countByRoleAndStatus(role, status) → number`.
 
 - `save` is a strict **insert** for new accounts. Postgres unique violation (`23505`) becomes `AccountAlreadyExistsException` (400), so two simultaneous signups with one email give one 201 and a clean 400, never a 500.
 - `updateIfRefreshTokenHashIs` is optimistic locking: one conditional `UPDATE` that writes only if the stored refresh hash is still the expected one. It encodes no business rule; the domain still decides the new state.
@@ -139,7 +139,7 @@ Repository methods: `findById`, `findByEmail`, `findByRefreshTokenHash`, `findBy
 | `CreateAccountUseCase` | admin-provisioned; explicit role, `ACTIVE` |
 | `LoginAccountUseCase` | lockout, timing-safe compare, active-only, rotation |
 | `RefreshAccountUseCase` | hash lookup, active-only, server-side expiry, single-use rotation (guarded write), opaque failure |
-| `LogoutAccountUseCase` | nulls the stored hash; tolerates a missing/unknown token |
+| `LogoutAccountUseCase` | clears the stored refresh token and raises `tokenVersion`, so the access tokens die too; tolerates a missing/unknown token |
 | `ActivateAccountUseCase` / `DeactivateAccountUseCase` | existence → `404`, then the domain transition. Deactivate first refuses `actorId === accountId` (`409`), and refuses to deactivate the last active `ADMIN` (`409`, `LastAdminException`; counted through `countByRoleAndStatus`, not atomic with the write) |
 | `GetAccountsUseCase` | always paginated |
 
@@ -182,6 +182,7 @@ All extend `DomainException` (in `src/shared/domain/`) and are mapped by `Domain
 | `InvalidRefreshTokenException` | 401 |
 | `AccountNotActivatedException` | 401 |
 | `ForbiddenRoleException` | 403 |
+| `CrossOriginRequestException` | 403 (`SameOriginGuard`, auth routes) |
 | `AccountNotFoundException` | 404 |
 | `AccountAlreadyExistsException` | 400 |
 | `AccountAlreadyActiveException` | 409 |
@@ -265,7 +266,7 @@ src/iam/
 ├── domain/
 │   ├── account.model.ts              # rich entity + LockoutPolicy
 │   ├── enums/{account-status,user-roles}
-│   └── exceptions/                   # 10 DomainException subclasses
+│   └── exceptions/                   # 12 DomainException subclasses
 ├── application/
 │   ├── ports/{account.repository.interface,accounts-query,
 │   │           password-hasher.port,token.service.port,
@@ -277,10 +278,89 @@ src/iam/
 │                 bcrypt-password-hasher,refresh-token.service,auth-cookie.util}
 ├── presentation/
 │   ├── {auth,account}.controller.ts
-│   ├── dtos/{register-account,create-account,login,accounts-list-request}
-│   └── guards/{jwt-auth.guard,roles.guard}
-├── testing/{account.fixture,fake-account.repository}
+│   ├── dtos/{register-account,create-account,login,accounts-list-request,   # requests
+│   │         account-response,auth-session-response}                       # responses (OpenAPI)
+│   └── guards/{jwt-auth.guard,roles.guard,same-origin.guard}
+├── testing/{account.fixture,fake-account.repository,fake-refresh-token.service}
 └── iam.module.ts
 ```
 
-Shared: `src/shared/domain/domain.exception.ts`, `src/shared/filters/domain-exception.filter.ts`, `src/shared/validators/password-strength.validator.ts`, `src/shared/database/`. Composition roots: `src/configure-app.ts`, `src/scripts/seed-admin.ts`.
+Shared: `src/shared/domain/domain.exception.ts`, `src/shared/filters/domain-exception.filter.ts`, `src/shared/validators/password-strength.validator.ts`, `src/shared/config/{validate-env,allowed-origins}.ts`, `src/shared/http/{require-json-body,setup-openapi}.ts`, `src/shared/database/`. Composition roots: `src/main.ts`, `src/configure-app.ts`, `src/scripts/seed-admin.ts`.
+
+## 14. Client contract (for `fdff-front`)
+
+Everything a browser client must do to work with this API. The machine-readable version is the OpenAPI spec at `/api/docs-json` (development only); generate types from it rather than hand-writing them.
+
+### Transport rules
+
+| Rule | Why |
+| --- | --- |
+| Base path `/api`. In development, call it same-origin through the Vite proxy (`/api` → `http://localhost:3000`) | Same origin keeps the `SameSite=Strict` cookie working |
+| Send `withCredentials: true` / `credentials: 'include'` on every call | The refresh cookie only travels with credentials |
+| Bodies are `application/json` only. Any other non-empty body is `415` | `requireJsonBody` |
+| `logout` and `refresh` take no body | They read the cookie |
+| The page's origin must be listed in the backend's `FRONTEND_URL` (exact match: scheme, host, port) | Otherwise auth routes answer `403 CrossOriginRequestException`, and CORS sends no headers |
+| Send the access token as `Authorization: Bearer <token>` on `/api/accounts*`. Never in a query string, never in storage | Only the header is read; storing it widens XSS exposure |
+| Do not send unknown fields. The validation pipe rejects any property a DTO does not declare (`400`) | e.g. signup must not include name, cédula or phone until the Athletes slice exists |
+
+### Session lifecycle
+
+1. **Login** `POST /api/auth/login` `{ email, password }` → `200 { accessToken, accountId, role }` plus the `refresh_token` cookie (`HttpOnly`, `Path=/api/auth`, `Max-Age` = 1 day by default). Keep `accessToken` in memory only.
+2. **Page load** → `POST /api/auth/refresh` (no body). `200` = same shape as login and a rotated cookie; `401` = not signed in. Treat `401` here as "show logged out", not an error.
+3. **Access token expired** (15 minutes) → any protected call returns `401`. Call refresh **once**, retry the call, and queue other requests while it runs.
+4. **Refresh is single-use.** Two refreshes with the same cookie at the same time: one wins, the other gets `401`, and a late replay of the old cookie ends the whole session. Run one refresh at a time **across tabs** (Web Locks or `BroadcastChannel`), not only within a tab, and do not fire the page-load refresh twice (React StrictMode runs effects twice in development).
+5. **Logout** `POST /api/auth/logout` → always `200`, clears the cookie, and revokes every access token of that account at once. Other open tabs get `401` on their next call and their refresh fails too: send them to the login page.
+6. **One session per account.** Logging in elsewhere replaces the refresh token, so this device's next refresh returns `401`.
+7. **After deploying the token-version change**, tokens without the `tv` claim are rejected: every user signs in once more.
+
+### Response shapes
+
+| Route | Success body |
+| --- | --- |
+| `POST /auth/register` | `201 { id, email, role: "ATHLETE", status: "PENDING" }` |
+| `POST /auth/login`, `POST /auth/refresh` | `200 { accessToken, accountId, role }` |
+| `POST /auth/logout` | `200`, empty body |
+| `GET /accounts` | `200 { data: [{ id, email, role, status }], total, page, limit }` |
+| `POST /accounts` | `201 { id, email, role, status: "ACTIVE" }` |
+| `POST /accounts/activate/:id`, `/deactivate/:id` | `204`, empty body |
+
+Errors are JSON with `statusCode`:
+
+| Source | Body |
+| --- | --- |
+| Domain rule (table in section 7) | `{ statusCode, message, error: "<ExceptionName>" }`. Branch on `error`, not on `message` |
+| Validation | `{ statusCode: 400, message: string[], error: "Bad Request" }` |
+| Missing, invalid or revoked access token | `{ statusCode: 401, message, error: "Unauthorized" }` |
+| Non-JSON body | `{ statusCode: 415, message, error: "Unsupported Media Type" }` |
+| Rate limit | `{ statusCode: 429, message: "ThrottlerException: Too Many Requests" }` |
+| Unexpected | `{ statusCode: 500, message: "Internal server error" }`, no details |
+
+`message` is English prose for developers. Show your own Spanish copy.
+
+### What each auth answer means
+
+| Call | Status | Meaning, and what to show |
+| --- | --- | --- |
+| login | `401 InvalidCredentialsException` | wrong email or password (deliberately the same answer for both) |
+| login | `401 AccountNotActivatedException` | right password, account `PENDING` or `INACTIVE`: "your account awaits approval" |
+| login | `423 AccountLockedException` | right password, locked for 15 minutes after 5 failures |
+| login, register, logout, refresh | `429` | too many tries (login 5/min, logout 5/min, refresh 10/min, register 10/hour, all per IP) |
+| register | `400 AccountAlreadyExistsException` | email already registered |
+| register | `400` validation | field rules below |
+| refresh | `401 InvalidRefreshTokenException` | not signed in, expired, replaced or revoked: one answer for all |
+| any auth route | `403 CrossOriginRequestException` | the page's origin is not in `FRONTEND_URL`: a deployment error, not a user error |
+| admin routes | `403 ForbiddenRoleException` | signed in but not an `ADMIN` |
+| deactivate | `409` | `CannotDeactivateOwnAccountException`, `LastAdminException` or `AccountAlreadyInactiveException` |
+| activate | `409 AccountAlreadyActiveException`; `404 AccountNotFoundException` | |
+
+### Field rules (mirror them in the forms)
+
+- **email:** valid address, at most 100 characters. The server trims and lowercases it, so `Ana@X.com` and `ana@x.com` are one account.
+- **password (register, admin create):** 8 to 20 characters with an uppercase letter, a lowercase letter, a digit and a special character. Login only checks length 8 to 20.
+- **register `role`:** optional; if sent it must be `"ATHLETE"`. Any other value is `400`.
+- **`GET /accounts` query:** `email` (fragment, at most 100), `role` (`ADMIN|JUDGE|ATHLETE`), `status` (`PENDING|ACTIVE|INACTIVE`), `page` (≥ 1), `limit` (1 to 100, default 10), `sortOrder` (`ASC|DESC`). Unknown parameters are `400`.
+- **`:accountId`:** a UUID, otherwise `400`.
+
+### Not available yet
+
+No password change or reset, no email confirmation, no athlete profile, categories, competitions or results endpoints. Do not build UI that calls them as if they existed; see section 11 and `docs/PROJECT_CONTEXT.md`.

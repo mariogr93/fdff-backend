@@ -38,7 +38,7 @@ src/
 | --- | --- | --- |
 | Domain model | `domain/<feature>.model.ts` | Business rules and invariants |
 | ORM entity | `infrastructure/persistence/<feature>.orm-entity.ts` | Table mapping |
-| DTO | `presentation/dtos/` | HTTP input validation |
+| DTO | `presentation/dtos/` | HTTP input validation, and response classes (`*-response.dto.ts`) that the OpenAPI spec describes |
 
 Map between them explicitly. Controllers project to plain objects, which keeps hashes out of responses.
 
@@ -50,6 +50,7 @@ Map between them explicitly. Controllers project to plain objects, which keeps h
 
 ## Testing
 
+- Run tests with `npm test` and `npm run test:e2e`, never `jest` directly: the scripts pass the Node flag Jest needs to load the ESM-only NestJS 12 packages.
 - Unit-test domain models with no Nest and no database (`src/iam/domain/account.model.spec.ts`).
 - Use-case tests use the in-memory fakes in `src/iam/testing/`. `makeAccount(overrides)` is the only place tests construct an `Account`.
 - Controller tests build a testing module, stub the guards, and wrap it in `configureApp`, so asserted status codes match what a client receives (`account.controller.spec.ts`).
