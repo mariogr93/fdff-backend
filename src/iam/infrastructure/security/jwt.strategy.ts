@@ -45,6 +45,13 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       );
     }
 
+    // Logout, deactivation and refresh-reuse detection raise the account's
+    // token version, which revokes every access token issued before it. A
+    // token with no `tv` (issued before this check existed) fails here too.
+    if (payload.tv !== account.tokenVersion) {
+      throw new UnauthorizedException('Access token has been revoked.');
+    }
+
     return { id: account.id, email: account.email, role: account.role };
   }
 }

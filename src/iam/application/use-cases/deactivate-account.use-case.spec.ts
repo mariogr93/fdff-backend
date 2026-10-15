@@ -68,6 +68,14 @@ describe('DeactivateAccountUseCase', () => {
     expect(stored?.previousRefreshTokenHash).toBeNull();
   });
 
+  it('revokes the access tokens already issued to the account', async () => {
+    const { useCase, repo } = build();
+
+    await useCase.execute({ accountId: TARGET_ID, actorId: ADMIN_ID });
+
+    expect((await repo.findById(TARGET_ID))?.tokenVersion).toBe(1);
+  });
+
   it('rejects a registration by deactivating a PENDING account', async () => {
     const repo = new FakeAccountRepository([
       makeAccount({ id: TARGET_ID, status: AccountStatus.PENDING }),

@@ -29,6 +29,7 @@ describe('JwtStrategy.validate', () => {
     const user = await build([account]).validate({
       sub: account.id,
       email: account.email,
+      tv: account.tokenVersion,
     });
 
     expect(user).toEqual({
@@ -47,8 +48,63 @@ describe('JwtStrategy.validate', () => {
 
   it('rejects an account that no longer exists', async () => {
     await expect(
-      build([]).validate({ sub: 'missing', email: 'x' }),
+      build([]).validate({ sub: 'missing', email: 'x', tv: 0 }),
     ).rejects.toBeInstanceOf(UnauthorizedException);
+  });
+
+  describe('token version', () => {
+    it('accepts a token whose version matches the account', async () => {
+      const account = makeAccount({ tokenVersion: 4 });
+
+      await expect(
+        build([account]).validate({
+          sub: account.id,
+          email: account.email,
+          tv: 4,
+        }),
+      ).resolves.toMatchObject({ id: account.id });
+    });
+
+    it('rejects a token issued before the version was raised', async () => {
+      const account = makeAccount({ tokenVersion: 5 });
+
+      await expect(
+        build([account]).validate({
+          sub: account.id,
+          email: account.email,
+          tv: 4,
+        }),
+      ).rejects.toBeInstanceOf(UnauthorizedException);
+    });
+
+    it('rejects a token that has no version at all', async () => {
+      const account = makeAccount();
+
+      await expect(
+        build([account]).validate({
+          sub: account.id,
+          email: account.email,
+        } as never),
+      ).rejects.toBeInstanceOf(UnauthorizedException);
+    });
+
+    it('revokes a live token when the account signs out', async () => {
+      const account = makeAccount({ refreshTokenHash: 'session' });
+      const repo = new FakeAccountRepository([account]);
+      const strategy = new JwtStrategy(config, repo);
+      const payload = {
+        sub: account.id,
+        email: account.email,
+        tv: account.tokenVersion,
+      };
+      await expect(strategy.validate(payload)).resolves.toBeDefined();
+
+      await repo.update(account.clearRefreshToken());
+
+      await expect(strategy.validate(payload)).rejects.toBeInstanceOf(
+        UnauthorizedException,
+      );
+    });
   });
 
   it.each([AccountStatus.PENDING, AccountStatus.INACTIVE])(
@@ -57,7 +113,11 @@ describe('JwtStrategy.validate', () => {
       const account = makeAccount({ status });
 
       await expect(
-        build([account]).validate({ sub: account.id, email: account.email }),
+        build([account]).validate({
+          sub: account.id,
+          email: account.email,
+          tv: account.tokenVersion,
+        }),
       ).rejects.toBeInstanceOf(UnauthorizedException);
     },
   );

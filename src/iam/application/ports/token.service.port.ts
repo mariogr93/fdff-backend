@@ -11,6 +11,8 @@ export interface AuthTokens {
 export interface TokenIdentity {
   id: string;
   email: string;
+  /** The account's token version; the token is revoked when it changes. */
+  tokenVersion: number;
 }
 
 export interface ITokenServicePort {

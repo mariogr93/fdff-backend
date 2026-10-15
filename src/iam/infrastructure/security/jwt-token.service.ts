@@ -30,6 +30,7 @@ export class JwtTokenService implements ITokenServicePort {
     const payload: JwtPayload = {
       sub: identity.id,
       email: identity.email,
+      tv: identity.tokenVersion,
     };
 
     const accessToken = await this.jwtService.signAsync(payload, {

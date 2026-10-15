@@ -115,6 +115,7 @@ export class LoginAccountUseCase {
     const { accessToken } = await this.tokenService.sign({
       id: account.id,
       email: account.email,
+      tokenVersion: account.tokenVersion,
     });
 
     return {

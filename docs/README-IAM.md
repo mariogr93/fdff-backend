@@ -68,7 +68,8 @@ A global `ThrottlerGuard` adds an app-wide 100 req/min (`app.module.ts`).
 | Access | `JWT_EXPIRES_IN` (default `15m`) | JSON response body | in-memory on the client only |
 | Refresh | `REFRESH_TOKEN_EXPIRES_DAYS` (default 1) | `HttpOnly` cookie | SHA-256 hash in `accounts.refresh_token_hash`, expiry in `accounts.refresh_token_expires_at`, replaced token in `accounts.previous_refresh_token_hash` |
 
-- Access tokens are **RS256**, signed with the private key; the payload is identity-only — `{ sub, email }`. **Role is deliberately not a claim.** `RolesGuard` reads the freshly-loaded `Account`, so a demoted or deactivated admin loses access on the next request instead of at token expiry. Do not "optimise" that database read away.
+- Access tokens are **RS256**, signed with the private key; the payload is `{ sub, email, tv }`: identity plus `tv`, the account's `tokenVersion` when the token was issued. **Role is deliberately not a claim.** `RolesGuard` reads the freshly-loaded `Account`, so a demoted or deactivated admin loses access on the next request instead of at token expiry. Do not "optimise" that database read away.
+- **Revoking access tokens without a denylist.** `JwtStrategy` rejects a token whose `tv` differs from the account's current `tokenVersion` (`401`). Logout, deactivation and refresh-reuse detection raise the version, so every access token issued so far stops working at once instead of at expiry. Login and refresh do not raise it: they sign with the current value. Because the version belongs to the account, a logout on one device ends the access tokens of its other sessions too. A token with no `tv` (issued before the column existed) is rejected.
 - The refresh token is an opaque 64-char random string. Only its hash is stored, so a database leak does not yield usable tokens.
 - Cookie options: `httpOnly`, `sameSite: 'strict'`, `secure` in production, `path: '/api/auth'`. Set and clear must use matching options or the cookie will not clear.
 - **Rotation:** every successful `/auth/refresh` issues a new refresh token and overwrites the stored hash, so the previous one stops working immediately.
@@ -81,7 +82,7 @@ A global `ThrottlerGuard` adds an app-wide 100 req/min (`app.module.ts`).
 | --- | --- |
 | `id` | UUID, generated in application code (`randomUUID`) |
 | `email` | unique login identifier, case-insensitive: stored trimmed and lowercase by `normalizeEmail()` (`domain/normalize-email.ts`), which login, register, create and the seed all call. DTOs only validate the format |
-| `passwordHash` | bcrypt, `SALT_ROUNDS` (default 10) |
+| `passwordHash` | bcrypt, `SALT_ROUNDS` (default 12) |
 | `role` | `ADMIN` \| `JUDGE` \| `ATHLETE` |
 | `status` | `PENDING` \| `ACTIVE` \| `INACTIVE` |
 | `failedLoginAttempts` | lockout counter |
@@ -89,8 +90,9 @@ A global `ThrottlerGuard` adds an app-wide 100 req/min (`app.module.ts`).
 | `refreshTokenHash` | nullable until first login; nulled on logout and deactivation |
 | `previousRefreshTokenHash` | the token the latest rotation replaced; nulled with the current one, and at login. Used only to detect reuse |
 | `refreshTokenExpiresAt` | when the stored refresh token stops being valid; nulled together with the hash. A hash with no expiry counts as expired |
+| `tokenVersion` | starts at 0, goes into every access token as `tv`. Raised by `deactivate()`, `clearRefreshToken()` and `revokeAccessTokens()`; never lowered |
 
-**Behaviour:** `isActive()`, `isLocked(now)`, `registerFailedLogin(policy, now)`, `clearLoginAttempts()`, `activate()`, `deactivate()`, `withRefreshToken(hash, expiresAt)` (new session), `rotateRefreshToken(hash, expiresAt)` (refresh), `clearRefreshToken()`, `hasLiveRefreshToken(now)`. All route through one private `copyWith()`, which is the only place an `Account` is rebuilt.
+**Behaviour:** `isActive()`, `isLocked(now)`, `registerFailedLogin(policy, now)`, `clearLoginAttempts()`, `activate()`, `deactivate()`, `withRefreshToken(hash, expiresAt)` (new session), `rotateRefreshToken(hash, expiresAt)` (refresh), `clearRefreshToken()`, `revokeAccessTokens()`, `hasLiveRefreshToken(now)`. All route through one private `copyWith()`, which is the only place an `Account` is rebuilt.
 
 - `now` is always a **parameter**, never `new Date()` inside the entity, so lockout is testable without faking time.
 - Lockout thresholds arrive as a `LockoutPolicy` argument (`DEFAULT_LOCKOUT_POLICY`: 5 attempts, 15 minutes). They are an operations lever, not an invariant, and the entity must never read configuration.
@@ -216,7 +218,7 @@ There must be **exactly one** `DomainException` class: `@Catch(DomainException)`
 | `JWT_PRIVATE_KEY_PATH` / `JWT_PUBLIC_KEY_PATH` | — | RS256 PEM paths; `JWT_PRIVATE_KEY` / `JWT_PUBLIC_KEY` accept inline PEM instead |
 | `JWT_EXPIRES_IN` | `15m` | Access token lifetime |
 | `REFRESH_TOKEN_EXPIRES_DAYS` | `1` | Days a refresh token stays valid (cookie max-age; also the server-side expiry once enforced). Sliding: each refresh restarts it |
-| `SALT_ROUNDS` | `10` | bcrypt cost |
+| `SALT_ROUNDS` | `12` | bcrypt cost |
 | `NODE_ENV` | **required** | `development`, `production` or `test`; refresh cookie is `Secure` in every environment except `development` |
 | `FRONTEND_URL` | `http://localhost:5173` in development and test only; **required in production** | CORS allowlist: comma-separated origins (`scheme://host[:port]`, no path, trailing slash or wildcard). An origin not on the list gets no CORS headers |
 | `PORT` | `3000` | HTTP port |
@@ -240,7 +242,7 @@ Password policy: 8–20 characters, `@IsPasswordStrong` (see `shared/validators/
 ## 11. Not implemented — do not assume it exists
 
 - No OpenAPI/Swagger spec; frontend API types are hand-written.
-- No `jti`/denylist, so a stolen access token is valid until `exp` (deactivation still revokes it at once, because `JwtStrategy` reloads the account).
+- No per-token revocation: revoking works per account (`tokenVersion`), so it cannot cancel one device's access token and keep another's.
 - Reuse detection recognises only the immediately previous refresh token, not the whole token family.
 - No email verification, password reset, or password change.
 - No audit log of account changes.

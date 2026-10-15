@@ -32,6 +32,14 @@ describe('LogoutAccountUseCase', () => {
     expect(stored?.previousRefreshTokenHash).toBeNull();
   });
 
+  it('revokes the access tokens too, so signing out is effective at once', async () => {
+    const { useCase, repo } = build();
+
+    await useCase.execute(TOKEN);
+
+    expect((await repo.findById('a1'))?.tokenVersion).toBe(1);
+  });
+
   it('leaves other accounts signed in', async () => {
     const other = sessionOf('b2', 'two@fdff.test', 'other-token');
     const { useCase, repo } = build([sessionOf('a1', 'one@fdff.test'), other]);

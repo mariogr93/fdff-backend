@@ -29,6 +29,7 @@ interface AccountState {
   refreshTokenHash: string | null;
   refreshTokenExpiresAt: Date | null;
   previousRefreshTokenHash: string | null;
+  tokenVersion: number;
 }
 
 export class Account {
@@ -43,6 +44,12 @@ export class Account {
     public readonly refreshTokenHash: string | null = null,
     public readonly refreshTokenExpiresAt: Date | null = null,
     public readonly previousRefreshTokenHash: string | null = null,
+    /**
+     * Stamped into every access token as `tv`. An access token is only valid
+     * while its `tv` equals this number, so raising it revokes every access
+     * token issued so far without a denylist.
+     */
+    public readonly tokenVersion: number = 0,
   ) {}
 
   /**
@@ -113,7 +120,16 @@ export class Account {
       refreshTokenHash: null,
       refreshTokenExpiresAt: null,
       previousRefreshTokenHash: null,
+      tokenVersion: this.tokenVersion + 1,
     });
+  }
+
+  /**
+   * Invalidates every access token issued so far. Login and refresh do not
+   * call this: they sign new tokens with the current version.
+   */
+  revokeAccessTokens(): Account {
+    return this.copyWith({ tokenVersion: this.tokenVersion + 1 });
   }
 
   /**
@@ -142,11 +158,17 @@ export class Account {
     });
   }
 
+  /**
+   * Ends the session (logout, or a replayed refresh token) and revokes the
+   * access tokens with it, so signing out is effective at once rather than
+   * 15 minutes later.
+   */
   clearRefreshToken(): Account {
     return this.copyWith({
       refreshTokenHash: null,
       refreshTokenExpiresAt: null,
       previousRefreshTokenHash: null,
+      tokenVersion: this.tokenVersion + 1,
     });
   }
 
@@ -175,6 +197,7 @@ export class Account {
       refreshTokenHash: this.refreshTokenHash,
       refreshTokenExpiresAt: this.refreshTokenExpiresAt,
       previousRefreshTokenHash: this.previousRefreshTokenHash,
+      tokenVersion: this.tokenVersion,
       ...changes,
     };
 
@@ -189,6 +212,7 @@ export class Account {
       next.refreshTokenHash,
       next.refreshTokenExpiresAt,
       next.previousRefreshTokenHash,
+      next.tokenVersion,
     );
   }
 }

@@ -120,6 +120,7 @@ export class TypeOrmAccountRepository implements IAccountRepository {
       row.refreshTokenHash,
       row.refreshTokenExpiresAt,
       row.previousRefreshTokenHash,
+      row.tokenVersion,
     );
   }
 
@@ -135,6 +136,7 @@ export class TypeOrmAccountRepository implements IAccountRepository {
     row.refreshTokenHash = account.refreshTokenHash;
     row.refreshTokenExpiresAt = account.refreshTokenExpiresAt;
     row.previousRefreshTokenHash = account.previousRefreshTokenHash;
+    row.tokenVersion = account.tokenVersion;
     return row;
   }
 }

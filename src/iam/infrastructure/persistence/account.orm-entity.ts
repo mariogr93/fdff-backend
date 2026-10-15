@@ -60,6 +60,9 @@ export class AccountOrmEntity {
   })
   previousRefreshTokenHash: string | null;
 
+  @Column({ name: 'token_version', type: 'int', default: 0 })
+  tokenVersion: number;
+
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;
 

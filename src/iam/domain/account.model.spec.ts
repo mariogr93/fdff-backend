@@ -238,6 +238,67 @@ describe('Account', () => {
     });
   });
 
+  describe('token version', () => {
+    const later = new Date('2026-01-02T12:00:00Z');
+
+    it('starts at 0', () => {
+      expect(makeAccount().tokenVersion).toBe(0);
+    });
+
+    it('revokeAccessTokens raises it by one without mutating the original', () => {
+      const account = makeAccount({ tokenVersion: 2 });
+
+      const next = account.revokeAccessTokens();
+
+      expect(next.tokenVersion).toBe(3);
+      expect(account.tokenVersion).toBe(2);
+    });
+
+    it.each([
+      ['deactivate', (a: ReturnType<typeof makeAccount>) => a.deactivate()],
+      [
+        'clearRefreshToken',
+        (a: ReturnType<typeof makeAccount>) => a.clearRefreshToken(),
+      ],
+    ])('%s revokes the access tokens', (_name, act) => {
+      const account = makeAccount({
+        status: AccountStatus.ACTIVE,
+        tokenVersion: 5,
+      });
+
+      expect(act(account).tokenVersion).toBe(6);
+    });
+
+    it.each([
+      [
+        'withRefreshToken (login)',
+        (a: ReturnType<typeof makeAccount>) => a.withRefreshToken('h', later),
+      ],
+      [
+        'rotateRefreshToken (refresh)',
+        (a: ReturnType<typeof makeAccount>) => a.rotateRefreshToken('h', later),
+      ],
+      [
+        'registerFailedLogin',
+        (a: ReturnType<typeof makeAccount>) =>
+          a.registerFailedLogin(policy, NOW),
+      ],
+      [
+        'clearLoginAttempts',
+        (a: ReturnType<typeof makeAccount>) => a.clearLoginAttempts(),
+      ],
+      ['activate', (a: ReturnType<typeof makeAccount>) => a.activate()],
+    ])('%s keeps it, so a new session stays valid', (_name, act) => {
+      const account = makeAccount({
+        status: AccountStatus.INACTIVE,
+        failedLoginAttempts: 1,
+        tokenVersion: 5,
+      });
+
+      expect(act(account).tokenVersion).toBe(5);
+    });
+  });
+
   describe('refresh token', () => {
     const now = new Date('2026-01-01T12:00:00Z');
     const later = new Date('2026-01-02T12:00:00Z');

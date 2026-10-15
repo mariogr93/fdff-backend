@@ -40,6 +40,18 @@ const build = (accounts = [sessionOf()]) => {
 };
 
 describe('RefreshAccountUseCase', () => {
+  it('signs with the current token version and does not revoke on a normal refresh', async () => {
+    const account = sessionOf({ tokenVersion: 4 });
+    const { useCase, repo, sign } = build([account]);
+
+    await useCase.execute(TOKEN);
+
+    expect(sign).toHaveBeenCalledWith(
+      expect.objectContaining({ tokenVersion: 4 }),
+    );
+    expect((await repo.findById(account.id))?.tokenVersion).toBe(4);
+  });
+
   it('issues a new access token and rotates the refresh token', async () => {
     const account = sessionOf();
     const { useCase, repo, sign } = build([account]);
@@ -55,6 +67,7 @@ describe('RefreshAccountUseCase', () => {
     expect(sign).toHaveBeenCalledWith({
       id: account.id,
       email: account.email,
+      tokenVersion: 0,
     });
 
     const stored = await repo.findById(account.id);
@@ -142,6 +155,8 @@ describe('RefreshAccountUseCase', () => {
       expect(stored?.refreshTokenHash).toBeNull();
       expect(stored?.refreshTokenExpiresAt).toBeNull();
       expect(stored?.previousRefreshTokenHash).toBeNull();
+      // The access tokens a thief may hold are revoked with the session.
+      expect(stored?.tokenVersion).toBe(account.tokenVersion + 1);
       // The legitimate holder of the newest token is signed out too.
       await expect(useCase.execute(current)).rejects.toThrow(
         InvalidRefreshTokenException,

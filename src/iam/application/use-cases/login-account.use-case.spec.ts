@@ -51,6 +51,19 @@ const login = (email = 'athlete@fdff.test', plainPassword = 'correct') => ({
 });
 
 describe('LoginAccountUseCase', () => {
+  it('signs the access token with the current token version and leaves it unchanged', async () => {
+    const account = makeAccount({ tokenVersion: 3 });
+    const { useCase, repo, sign } = build([account]);
+
+    await useCase.execute(login());
+
+    expect(sign).toHaveBeenCalledWith(
+      expect.objectContaining({ tokenVersion: 3 }),
+    );
+    // A login is not a revocation: older tokens of this account stay valid.
+    expect((await repo.findById(account.id))?.tokenVersion).toBe(3);
+  });
+
   it('issues an access token and stores a refresh hash on success', async () => {
     const account = makeAccount({ status: AccountStatus.ACTIVE });
     const { useCase, repo, sign } = build([account]);
@@ -66,6 +79,7 @@ describe('LoginAccountUseCase', () => {
     expect(sign).toHaveBeenCalledWith({
       id: account.id,
       email: account.email,
+      tokenVersion: 0,
     });
 
     // The plain token is returned to the caller; only its hash is persisted.
