@@ -249,7 +249,7 @@ Password policy: 8–20 characters, `@IsPasswordStrong` (see `shared/validators/
 - No email verification, password reset, or password change.
 - No audit log of account changes.
 - No CI, no Supabase, no Traefik.
-- Known gaps and accepted trade-offs: `docs/KNOWN-GAPS.md`.
+- Planned hardening and design decisions: `docs/NEXT-FEATURES.md`.
 
 ## 12. Next slices, in dependency order
 

@@ -52,7 +52,7 @@ npm run migration:run
 | --- | --- |
 | Glossary and business rules | `docs/DOMAIN.md` |
 | Folder layout, models, conventions, testing | `docs/ARCHITECTURE.md` |
-| Known gaps | `docs/KNOWN-GAPS.md` |
+| Planned hardening and design decisions | `docs/NEXT-FEATURES.md` |
 | IAM endpoints, flows, env vars | `docs/README-IAM.md` |
 | Target domain and infrastructure | `docs/PROJECT_CONTEXT.md` |
 | Database setup and migrations | `README.md` |
