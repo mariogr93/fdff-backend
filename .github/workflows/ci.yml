@@ -1,0 +1,16 @@
+name: Learn CI
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  first-job:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Print a message
+        run: echo "My first GitHub Actions workflow"
