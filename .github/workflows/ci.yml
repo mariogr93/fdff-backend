@@ -20,5 +20,7 @@ jobs:
           node-version: '24'
       - name: Install dependencies
         run: npm ci
+      - name: Build backend
+        run: npm run build
       - name: Print a message
         run: echo "My first GitHub Actions workflow"
