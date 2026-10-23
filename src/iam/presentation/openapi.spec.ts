@@ -10,6 +10,7 @@ import {
 } from '../../shared/http/setup-openapi';
 import { I_AUTH_POLICY } from '../application/ports/auth-policy';
 import { ActivateAccountUseCase } from '../application/use-cases/activate-account.use-case';
+import { ChangePasswordUseCase } from '../application/use-cases/change-password.use-case';
 import { CreateAccountUseCase } from '../application/use-cases/create-account.use-case';
 import { DeactivateAccountUseCase } from '../application/use-cases/deactivate-account.use-case';
 import { GetAccountsUseCase } from '../application/use-cases/get-accounts.use-case';
@@ -39,6 +40,7 @@ describe('OpenAPI document', () => {
       providers: [
         SameOriginGuard,
         ...[
+          ChangePasswordUseCase,
           RegisterAccountUseCase,
           LoginAccountUseCase,
           LogoutAccountUseCase,
@@ -64,7 +66,7 @@ describe('OpenAPI document', () => {
       method
     ];
 
-  it('documents all eight routes under the /api prefix', () => {
+  it('documents all nine routes under the /api prefix', () => {
     expect(
       Object.entries(doc.paths).flatMap(([path, item]) =>
         Object.keys(item).map((method) => `${method.toUpperCase()} ${path}`),
@@ -75,6 +77,7 @@ describe('OpenAPI document', () => {
         'POST /api/auth/login',
         'POST /api/auth/logout',
         'POST /api/auth/refresh',
+        'POST /api/auth/change-password',
         'GET /api/accounts',
         'POST /api/accounts',
         'POST /api/accounts/activate/{accountId}',
@@ -83,8 +86,9 @@ describe('OpenAPI document', () => {
     );
   });
 
-  it('marks every account route as needing the bearer token', () => {
+  it('marks every account route, and change-password, as needing the bearer token', () => {
     for (const [method, path] of [
+      ['post', '/api/auth/change-password'],
       ['get', '/api/accounts'],
       ['post', '/api/accounts'],
       ['post', '/api/accounts/activate/{accountId}'],

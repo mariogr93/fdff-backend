@@ -12,8 +12,10 @@ import {
 } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
+  ApiBearerAuth,
   ApiCookieAuth,
   ApiForbiddenResponse,
+  ApiNoContentResponse,
   ApiOkResponse,
   ApiOperation,
   ApiResponse,
@@ -23,7 +25,16 @@ import {
   ApiUnsupportedMediaTypeResponse,
 } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
-import { REFRESH_COOKIE_AUTH } from '../../shared/http/setup-openapi';
+import {
+  BEARER_AUTH,
+  REFRESH_COOKIE_AUTH,
+} from '../../shared/http/setup-openapi';
+import type { AuthenticatedUser } from '../application/ports/authenticated-user';
+import { ChangePasswordUseCase } from '../application/use-cases/change-password.use-case';
+import { UserRoles } from '../domain/enums/user-roles.enums';
+import { ChangePasswordDto } from './dtos/change-password.dto';
+import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { Roles, RolesGuard } from './guards/roles.guard';
 import { AccountResponseDto } from './dtos/account-response.dto';
 import { AuthSessionResponseDto } from './dtos/auth-session-response.dto';
 import {
@@ -66,6 +77,7 @@ export class AuthController {
     private readonly loginAccount: LoginAccountUseCase,
     private readonly logoutAccount: LogoutAccountUseCase,
     private readonly refreshAccount: RefreshAccountUseCase,
+    private readonly changePasswordUseCase: ChangePasswordUseCase,
     @Inject(I_AUTH_POLICY)
     private readonly policy: AuthPolicy,
   ) {}
@@ -197,5 +209,44 @@ export class AuthController {
       accountId: result.accountId,
       role: result.role,
     };
+  }
+
+  // The only route here that needs a bearer token, so its guards sit on the
+  // method: the rest of this controller is public. SameOriginGuard still runs
+  // first, from the class. Every role may use it, so a new role is not locked
+  // out.
+  @Post('change-password')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(...Object.values(UserRoles))
+  @Throttle({ default: { limit: 2, ttl: 600000 } })
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiBearerAuth(BEARER_AUTH)
+  @ApiOperation({
+    summary:
+      'Change your password. Ends every session of the account, this one included, and clears the refresh cookie: sign in again with the new password.',
+  })
+  @ApiNoContentResponse({ description: 'Password changed; sessions ended.' })
+  @ApiBadRequestResponse({
+    description:
+      'Invalid input, the current password is wrong, or the new one equals it.',
+  })
+  @ApiUnauthorizedResponse({
+    description: 'Missing, expired or revoked access token.',
+  })
+  async changePassword(
+    @Body() dto: ChangePasswordDto,
+    @Req() req: Request & { user: AuthenticatedUser },
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<void> {
+    await this.changePasswordUseCase.execute({
+      accountId: req.user.id,
+      currentPlainPassword: dto.currentPassword,
+      newPlainPassword: dto.newPassword,
+    });
+
+    res.clearCookie(
+      REFRESH_TOKEN_COOKIE,
+      buildClearRefreshTokenCookieOptions(this.policy.secureCookies),
+    );
   }
 }

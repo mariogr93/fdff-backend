@@ -12,6 +12,7 @@ import { DEFAULT_LOCKOUT_POLICY } from './domain/account.model';
 import { I_PASSWORD_HASHER } from './application/ports/password-hasher.port';
 import { I_REFRESH_TOKEN_SERVICE } from './application/ports/refresh-token.port';
 import { I_TOKEN_SERVICE } from './application/ports/token.service.port';
+import { ChangePasswordUseCase } from './application/use-cases/change-password.use-case';
 import { GetAccountsUseCase } from './application/use-cases/get-accounts.use-case';
 import { LoginAccountUseCase } from './application/use-cases/login-account.use-case';
 import { RefreshAccountUseCase } from './application/use-cases/refresh-account.use-case';
@@ -60,6 +61,7 @@ import { LogoutAccountUseCase } from './application/use-cases/logout-account.use
   controllers: [AuthController, AccountController],
   providers: [
     JwtStrategy,
+    ChangePasswordUseCase,
     RolesGuard,
     JwtAuthGuard,
     SameOriginGuard,

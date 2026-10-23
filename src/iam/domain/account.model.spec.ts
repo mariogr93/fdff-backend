@@ -415,4 +415,47 @@ describe('Account', () => {
       expect(next.refreshTokenHash).toBe('hash');
     });
   });
+
+  describe('changePassword', () => {
+    const account = makeAccount({
+      passwordHash: 'old',
+      failedLoginAttempts: 2,
+      lockedUntil: new Date('2026-10-05T12:10:00.000Z'),
+      refreshTokenHash: 'current',
+      refreshTokenExpiresAt: new Date('2026-10-06T12:00:00.000Z'),
+      previousRefreshTokenHash: 'older',
+      tokenVersion: 4,
+    });
+
+    it('replaces the hash and ends the session', () => {
+      const next = account.changePassword('new');
+
+      expect(next.passwordHash).toBe('new');
+      expect(next.refreshTokenHash).toBeNull();
+      expect(next.refreshTokenExpiresAt).toBeNull();
+      expect(next.previousRefreshTokenHash).toBeNull();
+    });
+
+    it('revokes the access tokens already issued', () => {
+      expect(account.changePassword('new').tokenVersion).toBe(5);
+    });
+
+    it('clears failed attempts and any lock', () => {
+      const next = account.changePassword('new');
+
+      expect(next.failedLoginAttempts).toBe(0);
+      expect(next.lockedUntil).toBeNull();
+    });
+
+    it('keeps identity, role and status', () => {
+      const next = account.changePassword('new');
+
+      expect(next).toMatchObject({
+        id: account.id,
+        email: account.email,
+        role: account.role,
+        status: account.status,
+      });
+    });
+  });
 });

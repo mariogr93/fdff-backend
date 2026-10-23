@@ -172,6 +172,24 @@ export class Account {
     });
   }
 
+  /**
+   * Replaces the password and ends every session, revoking the access tokens
+   * with them: whoever held the old password, or a stolen token, is signed out.
+   * The single place a password changes, whatever proved the caller's identity
+   * (the current password today; a temporary password or a reset later).
+   */
+  changePassword(passwordHash: string): Account {
+    return this.copyWith({
+      passwordHash,
+      failedLoginAttempts: 0,
+      lockedUntil: null,
+      refreshTokenHash: null,
+      refreshTokenExpiresAt: null,
+      previousRefreshTokenHash: null,
+      tokenVersion: this.tokenVersion + 1,
+    });
+  }
+
   /** A stored token with no expiry date counts as expired: fail closed. */
   hasLiveRefreshToken(now: Date): boolean {
     return (

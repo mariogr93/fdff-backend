@@ -33,6 +33,9 @@ All routes are under the global `/api` prefix.
 | `POST` | `/auth/login` | none | 5 / min | `200` |
 | `POST` | `/auth/logout` | none (cookie only) | 5 / min | `200` |
 | `POST` | `/auth/refresh` | none (cookie only) | 10 / min | `200` |
+| `POST` | `/auth/change-password` | bearer token, any role | 2 / 10 min | `204` |
+
+`change-password` is the only route in this controller that needs a bearer token, so its `JwtAuthGuard`, `RolesGuard` and `@Roles` sit on the method, not the class (the rest of the controller is public). Body `{ currentPassword, newPassword }`. It ends every session of the account, this one included, and clears the refresh cookie: the client signs in again with the new password. All three password flows end in `Account.changePassword()`.
 
 **Cross-site requests.** `SameOriginGuard` sits on the whole `AuthController`, because `SameSite=Strict` only protects routes that need the cookie, and login, logout and register need none (login CSRF would sign the victim in as the attacker). A request whose `Origin` is not in `FRONTEND_URL` gets `403` (`CrossOriginRequestException`) before any use case runs. Browsers send `Origin` on every POST. With no `Origin`, a request passes unless the browser marked it `Sec-Fetch-Site: cross-site`; curl and servers send neither header and pass.
 
@@ -141,6 +144,7 @@ Repository methods: `findById`, `findByEmail`, `findByRefreshTokenHash`, `findBy
 | `RefreshAccountUseCase` | hash lookup, active-only, server-side expiry, single-use rotation (guarded write), opaque failure |
 | `LogoutAccountUseCase` | clears the stored refresh token and raises `tokenVersion`, so the access tokens die too; tolerates a missing/unknown token |
 | `ActivateAccountUseCase` / `DeactivateAccountUseCase` | existence → `404`, then the domain transition. Deactivate first refuses `actorId === accountId` (`409`), and refuses to deactivate the last active `ADMIN` (`409`, `LastAdminException`; counted through `countByRoleAndStatus`, not atomic with the write) |
+| `ChangePasswordUseCase` | wrong current password → `400`; new equal to current → `400`. Hashes the new one and calls `Account.changePassword()` (ends all sessions, raises `tokenVersion`). Opens no session |
 | `GetAccountsUseCase` | always paginated |
 
 ### Login flow, and why its order matters
@@ -190,6 +194,8 @@ All extend `DomainException` (in `src/shared/domain/`) and are mapped by `Domain
 | `CannotDeactivateOwnAccountException` | 409 |
 | `LastAdminException` | 409 |
 | `AccountLockedException` | 423 |
+| `CurrentPasswordIncorrectException` | 400 (not 401: the session is valid) |
+| `NewPasswordUnchangedException` | 400 |
 
 There must be **exactly one** `DomainException` class: `@Catch(DomainException)` matches on class identity, so a second copy makes the filter silently stop matching and every domain error becomes a `500` with a leaked stack. `src/iam/domain/exceptions/exceptions.spec.ts` loads every `*.exception.ts` file in that folder and asserts each export extends the shared base class with a 4xx status, so a new exception is checked automatically. The shared filter spec uses a local stand-in and imports no slice.
 
@@ -246,7 +252,7 @@ Password policy: 8–20 characters, `@IsPasswordStrong` (see `shared/validators/
 
 - No per-token revocation: revoking works per account (`tokenVersion`), so it cannot cancel one device's access token and keep another's.
 - Reuse detection recognises only the immediately previous refresh token, not the whole token family.
-- No email verification, password reset, or password change.
+- No email verification or password reset. Signed-in password change exists (`POST /auth/change-password`); the forced change after a temporary password does not.
 - No audit log of account changes.
 - No CI, no Supabase, no Traefik.
 - Planned hardening and design decisions: `docs/NEXT-FEATURES.md`.
@@ -266,19 +272,19 @@ src/iam/
 ├── domain/
 │   ├── account.model.ts              # rich entity + LockoutPolicy
 │   ├── enums/{account-status,user-roles}
-│   └── exceptions/                   # 12 DomainException subclasses
+│   └── exceptions/                   # 14 DomainException subclasses
 ├── application/
 │   ├── ports/{account.repository.interface,accounts-query,
 │   │           password-hasher.port,token.service.port,
 │   │           refresh-token.port,auth-policy}
-│   └── use-cases/                    # 8 use cases
+│   └── use-cases/                    # 9 use cases
 ├── infrastructure/
 │   ├── persistence/{account.orm-entity,typeorm-account.repository}
 │   └── security/{jwt.strategy,jwt-token.service,jwt-key.util,
 │                 bcrypt-password-hasher,refresh-token.service,auth-cookie.util}
 ├── presentation/
 │   ├── {auth,account}.controller.ts
-│   ├── dtos/{register-account,create-account,login,accounts-list-request,   # requests
+│   ├── dtos/{register-account,create-account,login,change-password,accounts-list-request,   # requests
 │   │         account-response,auth-session-response}                       # responses (OpenAPI)
 │   └── guards/{jwt-auth.guard,roles.guard,same-origin.guard}
 ├── testing/{account.fixture,fake-account.repository,fake-refresh-token.service}
@@ -300,7 +306,7 @@ Everything a browser client must do to work with this API. The machine-readable 
 | Bodies are `application/json` only. Any other non-empty body is `415` | `requireJsonBody` |
 | `logout` and `refresh` take no body | They read the cookie |
 | The page's origin must be listed in the backend's `FRONTEND_URL` (exact match: scheme, host, port) | Otherwise auth routes answer `403 CrossOriginRequestException`, and CORS sends no headers |
-| Send the access token as `Authorization: Bearer <token>` on `/api/accounts*`. Never in a query string, never in storage | Only the header is read; storing it widens XSS exposure |
+| Send the access token as `Authorization: Bearer <token>` on `/api/accounts*` and `POST /api/auth/change-password`. Never in a query string, never in storage | Only the header is read; storing it widens XSS exposure |
 | Do not send unknown fields. The validation pipe rejects any property a DTO does not declare (`400`) | e.g. signup must not include name, cédula or phone until the Athletes slice exists |
 
 ### Session lifecycle
@@ -323,6 +329,7 @@ Everything a browser client must do to work with this API. The machine-readable 
 | `GET /accounts` | `200 { data: [{ id, email, role, status }], total, page, limit }` |
 | `POST /accounts` | `201 { id, email, role, status: "ACTIVE" }` |
 | `POST /accounts/activate/:id`, `/deactivate/:id` | `204`, empty body |
+| `POST /auth/change-password` | `204`, empty body, refresh cookie cleared. Drop the in-memory access token and send the user to sign-in |
 
 Errors are JSON with `statusCode`:
 
@@ -350,6 +357,9 @@ Errors are JSON with `statusCode`:
 | refresh | `401 InvalidRefreshTokenException` | not signed in, expired, replaced or revoked: one answer for all |
 | any auth route | `403 CrossOriginRequestException` | the page's origin is not in `FRONTEND_URL`: a deployment error, not a user error |
 | admin routes | `403 ForbiddenRoleException` | signed in but not an `ADMIN` |
+| change password | `400 CurrentPasswordIncorrectException` | the current password is wrong; the session is still valid, so do not sign the user out |
+| change password | `400 NewPasswordUnchangedException` | the new password equals the current one |
+| change password | `429` | 2 per 10 minutes per IP, failed attempts included |
 | deactivate | `409` | `CannotDeactivateOwnAccountException`, `LastAdminException` or `AccountAlreadyInactiveException` |
 | activate | `409 AccountAlreadyActiveException`; `404 AccountNotFoundException` | |
 
@@ -360,7 +370,8 @@ Errors are JSON with `statusCode`:
 - **register `role`:** optional; if sent it must be `"ATHLETE"`. Any other value is `400`.
 - **`GET /accounts` query:** `email` (fragment, at most 100), `role` (`ADMIN|JUDGE|ATHLETE`), `status` (`PENDING|ACTIVE|INACTIVE`), `page` (≥ 1), `limit` (1 to 100, default 10), `sortOrder` (`ASC|DESC`). Unknown parameters are `400`.
 - **`:accountId`:** a UUID, otherwise `400`.
+- **change password:** `currentPassword` 8 to 20 characters; `newPassword` follows the signup password rule.
 
 ### Not available yet
 
-No password change or reset, no email confirmation, no athlete profile, categories, competitions or results endpoints. Do not build UI that calls them as if they existed; see section 11 and `docs/PROJECT_CONTEXT.md`.
+No password reset, no forced change after a temporary password, no email confirmation, no athlete profile, categories, competitions or results endpoints. Do not build UI that calls them as if they existed; see section 11 and `docs/PROJECT_CONTEXT.md`.
