@@ -10,7 +10,7 @@ permissions:
 jobs:
   first-job:
     runs-on: ubuntu-24.04
-
+    timeout-minutes: 15
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -22,5 +22,11 @@ jobs:
         run: npm ci
       - name: Build backend
         run: npm run build
-      - name: Print a message
-        run: echo "My first GitHub Actions workflow"
+      - name: Check ESLint
+        run: npx eslint "{src,test}/**/*.ts"
+      - name: Check formatting
+        run: npx prettier --check "src/**/*.ts" "test/**/*.ts"
+      - name: Run unit and controller tests
+        run: npm test
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=high
