@@ -121,6 +121,10 @@ export class TypeOrmAccountRepository implements IAccountRepository {
       row.refreshTokenExpiresAt,
       row.previousRefreshTokenHash,
       row.tokenVersion,
+      row.mustChangePassword,
+      row.temporaryPasswordHash,
+      row.temporaryPasswordExpiresAt,
+      row.temporaryPasswordUsedAt,
     );
   }
 
@@ -137,6 +141,10 @@ export class TypeOrmAccountRepository implements IAccountRepository {
     row.refreshTokenExpiresAt = account.refreshTokenExpiresAt;
     row.previousRefreshTokenHash = account.previousRefreshTokenHash;
     row.tokenVersion = account.tokenVersion;
+    row.mustChangePassword = account.mustChangePassword;
+    row.temporaryPasswordHash = account.temporaryPasswordHash;
+    row.temporaryPasswordExpiresAt = account.temporaryPasswordExpiresAt;
+    row.temporaryPasswordUsedAt = account.temporaryPasswordUsedAt;
     return row;
   }
 }

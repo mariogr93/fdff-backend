@@ -84,6 +84,74 @@ describe('ChangePasswordUseCase', () => {
     expect(await repo.findById(account.id)).toEqual(account);
   });
 
+  describe('after a sign-in with a temporary password', () => {
+    const restricted = (overrides = {}) =>
+      makeAccount({
+        passwordHash: 'unknown-random',
+        temporaryPasswordHash: 'temp-hash',
+        temporaryPasswordUsedAt: new Date(),
+        mustChangePassword: true,
+        ...overrides,
+      });
+
+    const buildRestricted = (account: ReturnType<typeof restricted>) => {
+      const repo = new FakeAccountRepository([account]);
+      const passwordHasher: IPasswordHasherPort = {
+        hash: jest.fn((plain: string) => Promise.resolve(`hash:${plain}`)),
+        compare: jest.fn((plain: string, hash: string) =>
+          Promise.resolve(plain === 'Temp#Pass1' && hash === 'temp-hash'),
+        ),
+      };
+
+      return { useCase: new ChangePasswordUseCase(repo, passwordHasher), repo };
+    };
+
+    it('takes the temporary password as the current password and clears the restriction', async () => {
+      const account = restricted();
+      const { useCase, repo } = buildRestricted(account);
+
+      await useCase.execute({
+        accountId: account.id,
+        currentPlainPassword: 'Temp#Pass1',
+        newPlainPassword: 'Brand#New2',
+      });
+
+      const stored = await repo.findById(account.id);
+      expect(stored?.mustChangePassword).toBe(false);
+      expect(stored?.temporaryPasswordHash).toBeNull();
+      expect(stored?.temporaryPasswordUsedAt).toBeNull();
+      expect(stored?.passwordHash).toBe('hash:Brand#New2');
+    });
+
+    it('refuses an expired temporary password', async () => {
+      const account = restricted({
+        temporaryPasswordExpiresAt: new Date(Date.now() - 1_000),
+      });
+      const { useCase } = buildRestricted(account);
+
+      await expect(
+        useCase.execute({
+          accountId: account.id,
+          currentPlainPassword: 'Temp#Pass1',
+          newPlainPassword: 'Brand#New2',
+        }),
+      ).rejects.toThrow(CurrentPasswordIncorrectException);
+    });
+
+    it('ignores a pending temporary password when the session is not restricted', async () => {
+      const account = restricted({ mustChangePassword: false });
+      const { useCase } = buildRestricted(account);
+
+      await expect(
+        useCase.execute({
+          accountId: account.id,
+          currentPlainPassword: 'Temp#Pass1',
+          newPlainPassword: 'Brand#New2',
+        }),
+      ).rejects.toThrow(CurrentPasswordIncorrectException);
+    });
+  });
+
   it('answers 404 for an account that no longer exists', async () => {
     const { useCase } = build([]);
 

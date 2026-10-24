@@ -19,6 +19,8 @@ export interface IRefreshResult {
   refreshToken: string;
   accountId: string;
   role: string;
+  /** Lets a page reload keep a restricted session restricted. */
+  mustChangePassword: boolean;
 }
 
 @Injectable()
@@ -80,6 +82,7 @@ export class RefreshAccountUseCase {
       refreshToken: newRefreshToken,
       accountId: account.id,
       role: account.role.toString(),
+      mustChangePassword: account.mustChangePassword,
     };
   }
 

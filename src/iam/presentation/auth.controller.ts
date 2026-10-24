@@ -34,7 +34,11 @@ import { ChangePasswordUseCase } from '../application/use-cases/change-password.
 import { UserRoles } from '../domain/enums/user-roles.enums';
 import { ChangePasswordDto } from './dtos/change-password.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
-import { Roles, RolesGuard } from './guards/roles.guard';
+import {
+  AllowWhilePasswordChangePending,
+  Roles,
+  RolesGuard,
+} from './guards/roles.guard';
 import { AccountResponseDto } from './dtos/account-response.dto';
 import { AuthSessionResponseDto } from './dtos/auth-session-response.dto';
 import {
@@ -145,6 +149,7 @@ export class AuthController {
       accessToken: result.accessToken,
       accountId: result.accountId,
       role: result.role,
+      mustChangePassword: result.mustChangePassword,
     };
   }
 
@@ -208,16 +213,19 @@ export class AuthController {
       accessToken: result.accessToken,
       accountId: result.accountId,
       role: result.role,
+      mustChangePassword: result.mustChangePassword,
     };
   }
 
   // The only route here that needs a bearer token, so its guards sit on the
   // method: the rest of this controller is public. SameOriginGuard still runs
   // first, from the class. Every role may use it, so a new role is not locked
-  // out.
+  // out, and it is the one route a session restricted to changing the password
+  // may call.
   @Post('change-password')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(...Object.values(UserRoles))
+  @AllowWhilePasswordChangePending()
   @Throttle({ default: { limit: 2, ttl: 600000 } })
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiBearerAuth(BEARER_AUTH)

@@ -96,8 +96,10 @@ A global `ThrottlerGuard` adds an app-wide 100 req/min (`app.module.ts`).
 | `previousRefreshTokenHash` | the token the latest rotation replaced; nulled with the current one, and at login. Used only to detect reuse |
 | `refreshTokenExpiresAt` | when the stored refresh token stops being valid; nulled together with the hash. A hash with no expiry counts as expired |
 | `tokenVersion` | starts at 0, goes into every access token as `tv`. Raised by `deactivate()`, `clearRefreshToken()` and `revokeAccessTokens()`; never lowered |
+| `mustChangePassword` | true from the first sign-in with a temporary password until the password changes. The session is restricted to `POST /auth/change-password` meanwhile (see the temporary password section) |
+| `temporaryPasswordHash` / `temporaryPasswordExpiresAt` / `temporaryPasswordUsedAt` | a one-time credential kept beside the real password, which keeps working. A null expiry never expires. The hash stays after first use so a second use can be recognised |
 
-**Behaviour:** `isActive()`, `isLocked(now)`, `registerFailedLogin(policy, now)`, `clearLoginAttempts()`, `activate()`, `deactivate()`, `withRefreshToken(hash, expiresAt)` (new session), `rotateRefreshToken(hash, expiresAt)` (refresh), `clearRefreshToken()`, `revokeAccessTokens()`, `hasLiveRefreshToken(now)`. All route through one private `copyWith()`, which is the only place an `Account` is rebuilt.
+**Behaviour:** `isActive()`, `isLocked(now)`, `registerFailedLogin(policy, now)`, `clearLoginAttempts()`, `activate()`, `deactivate()`, `withRefreshToken(hash, expiresAt)` (new session), `rotateRefreshToken(hash, expiresAt)` (refresh), `clearRefreshToken()`, `revokeAccessTokens()`, `hasLiveRefreshToken(now)`, `changePassword(hash)`, `withTemporaryPassword(hash, expiresAt)`, `hasLiveTemporaryPassword(now)`, `hasUsedTemporaryPassword()`, `useTemporaryPassword(now)`, `clearTemporaryPassword()`. All route through one private `copyWith()`, which is the only place an `Account` is rebuilt.
 
 - `now` is always a **parameter**, never `new Date()` inside the entity, so lockout is testable without faking time.
 - Lockout thresholds arrive as a `LockoutPolicy` argument (`DEFAULT_LOCKOUT_POLICY`: 5 attempts, 15 minutes). They are an operations lever, not an invariant, and the entity must never read configuration.
@@ -152,23 +154,39 @@ Repository methods: `findById`, `findByEmail`, `findByRefreshTokenHash`, `findBy
 ```
 findByEmail
   ↓
-bcrypt compare             (always exactly one; against a dummy hash built by the
-  ↓                          same hasher when the email is unknown, so response
-  ↓                          time doesn't reveal existence or lock state)
+bcrypt compare #1          (real password hash; a dummy hash built by the same
+  ↓                          hasher when the email is unknown)
+bcrypt compare #2          (only after a miss: the temporary password hash, or the
+  ↓                          dummy when there is none, so every failed attempt costs
+  ↓                          two and reveals nothing about the account)
 account locked?            → right password: AccountLockedException (423)
   ↓                          wrong password: InvalidCredentials (401), counter untouched
 no account / invalid?      → registerFailedLogin → update → InvalidCredentials (401)
   ↓
 isActive()?               → clearLoginAttempts → update → AccountNotActivated (401)
   ↓
+real password?            → clearTemporaryPassword() (a pending temporary password is dropped)
+temporary password?       → already used: deactivate → TemporaryPasswordAlreadyUsed (401)
+                            first use: useTemporaryPassword() (restricted session)
+  ↓
 generate refresh token → clearLoginAttempts().withRefreshToken(hash, now + ttl) → update
   ↓
 sign RS256 access token
   ↓
-Set-Cookie: refresh_token  +  JSON { accessToken, accountId, role }
+Set-Cookie: refresh_token  +  JSON { accessToken, accountId, role, mustChangePassword }
 ```
 
-**Timing and disclosure:** every path pays one bcrypt comparison (measured at cost 12: unknown email, wrong password, locked account all about 210 ms). Only someone who proves they know the password is told the account is locked (423) or not yet activated; everyone else sees the same generic 401. A guess at a locked account is not counted, so strangers cannot extend a lock. The dummy hash is built lazily with the real hasher, so its cost follows `SALT_ROUNDS`; the first unknown-email login after boot pays one extra hash.
+**Timing and disclosure:** a correct real password pays one bcrypt comparison (about 210 ms at cost 12); every miss pays two, whether the email is unknown, the password is wrong, the account is locked or a temporary password is pending. Only someone who proves they know the password is told the account is locked (423) or not yet activated; everyone else sees the same generic 401. A guess at a locked account is not counted, so strangers cannot extend a lock. The dummy hash is built lazily with the real hasher, so its cost follows `SALT_ROUNDS`; the first unknown-email login after boot pays one extra hash.
+
+### Temporary password
+
+A temporary password is stored beside the real one (`withTemporaryPassword`), so the real password keeps working and a stranger cannot lock the owner out. Nothing issues one yet (a later slice does: forgot password, coach-created athletes).
+
+- **First sign-in with it** opens a restricted session: `mustChangePassword` is true in the login and refresh answers, and `RolesGuard` answers `403 PasswordChangeRequiredException` on every guarded route except those marked `@AllowWhilePasswordChangePending()` (only `POST /auth/change-password`). The flag is read from the database per request, not from the token.
+- **Changing the password** accepts the temporary password as `currentPassword`, clears the flag and the temporary password, and ends every session: sign in again with the new password.
+- **A second sign-in with it** before the change deactivates the account (`TemporaryPasswordAlreadyUsedException`, 401); an administrator reactivates it.
+- **The real password** used at login drops a pending temporary one.
+- **Expiry** is per temporary password; a null expiry never expires.
 
 The refresh path deliberately returns **one opaque error** for every failure (no such token, expired token, account not active, or a lost race). Unlike login, it must not let a stolen cookie distinguish those cases.
 
@@ -194,6 +212,8 @@ All extend `DomainException` (in `src/shared/domain/`) and are mapped by `Domain
 | `CannotDeactivateOwnAccountException` | 409 |
 | `LastAdminException` | 409 |
 | `AccountLockedException` | 423 |
+| `TemporaryPasswordAlreadyUsedException` | 401 (told only to someone who proved the temporary password) |
+| `PasswordChangeRequiredException` | 403 (restricted session, `RolesGuard`) |
 | `CurrentPasswordIncorrectException` | 400 (not 401: the session is valid) |
 | `NewPasswordUnchangedException` | 400 |
 
@@ -252,7 +272,7 @@ Password policy: 8–20 characters, `@IsPasswordStrong` (see `shared/validators/
 
 - No per-token revocation: revoking works per account (`tokenVersion`), so it cannot cancel one device's access token and keep another's.
 - Reuse detection recognises only the immediately previous refresh token, not the whole token family.
-- No email verification or password reset. Signed-in password change exists (`POST /auth/change-password`); the forced change after a temporary password does not.
+- No email verification or password reset. Signed-in password change exists (`POST /auth/change-password`), and so does the forced change after a temporary password; nothing issues a temporary password yet.
 - No audit log of account changes.
 - No CI, no Supabase, no Traefik.
 - Planned hardening and design decisions: `docs/NEXT-FEATURES.md`.
@@ -272,7 +292,7 @@ src/iam/
 ├── domain/
 │   ├── account.model.ts              # rich entity + LockoutPolicy
 │   ├── enums/{account-status,user-roles}
-│   └── exceptions/                   # 14 DomainException subclasses
+│   └── exceptions/                   # 16 DomainException subclasses
 ├── application/
 │   ├── ports/{account.repository.interface,accounts-query,
 │   │           password-hasher.port,token.service.port,
@@ -324,7 +344,7 @@ Everything a browser client must do to work with this API. The machine-readable 
 | Route | Success body |
 | --- | --- |
 | `POST /auth/register` | `201 { id, email, role: "ATHLETE", status: "PENDING" }` |
-| `POST /auth/login`, `POST /auth/refresh` | `200 { accessToken, accountId, role }` |
+| `POST /auth/login`, `POST /auth/refresh` | `200 { accessToken, accountId, role, mustChangePassword }`. When `mustChangePassword` is true, show only the change-password screen |
 | `POST /auth/logout` | `200`, empty body |
 | `GET /accounts` | `200 { data: [{ id, email, role, status }], total, page, limit }` |
 | `POST /accounts` | `201 { id, email, role, status: "ACTIVE" }` |
@@ -351,6 +371,8 @@ Errors are JSON with `statusCode`:
 | login | `401 InvalidCredentialsException` | wrong email or password (deliberately the same answer for both) |
 | login | `401 AccountNotActivatedException` | right password, account `PENDING` or `INACTIVE`: "your account awaits approval" |
 | login | `423 AccountLockedException` | right password, locked for 15 minutes after 5 failures |
+| login | `401 TemporaryPasswordAlreadyUsedException` | the temporary password was used before and the password never changed: the account is now inactive, ask an administrator |
+| any guarded route | `403 PasswordChangeRequiredException` | restricted session (`mustChangePassword`): send the person to the change-password screen |
 | login, register, logout, refresh | `429` | too many tries (login 5/min, logout 5/min, refresh 10/min, register 10/hour, all per IP) |
 | register | `400 AccountAlreadyExistsException` | email already registered |
 | register | `400` validation | field rules below |
@@ -374,4 +396,4 @@ Errors are JSON with `statusCode`:
 
 ### Not available yet
 
-No password reset, no forced change after a temporary password, no email confirmation, no athlete profile, categories, competitions or results endpoints. Do not build UI that calls them as if they existed; see section 11 and `docs/PROJECT_CONTEXT.md`.
+No password reset, no endpoint that issues a temporary password, no email confirmation, no athlete profile, categories, competitions or results endpoints. Do not build UI that calls them as if they existed; see section 11 and `docs/PROJECT_CONTEXT.md`.

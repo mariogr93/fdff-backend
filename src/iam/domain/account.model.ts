@@ -30,6 +30,10 @@ interface AccountState {
   refreshTokenExpiresAt: Date | null;
   previousRefreshTokenHash: string | null;
   tokenVersion: number;
+  mustChangePassword: boolean;
+  temporaryPasswordHash: string | null;
+  temporaryPasswordExpiresAt: Date | null;
+  temporaryPasswordUsedAt: Date | null;
 }
 
 export class Account {
@@ -50,6 +54,19 @@ export class Account {
      * token issued so far without a denylist.
      */
     public readonly tokenVersion: number = 0,
+    /**
+     * True from the first sign-in with a temporary password until the password
+     * is changed. The session is restricted to changing it meanwhile.
+     */
+    public readonly mustChangePassword: boolean = false,
+    /**
+     * A one-time credential kept beside the real password, which keeps working:
+     * a stranger asking for a reset cannot lock the owner out. Null expiry means
+     * it never expires.
+     */
+    public readonly temporaryPasswordHash: string | null = null,
+    public readonly temporaryPasswordExpiresAt: Date | null = null,
+    public readonly temporaryPasswordUsedAt: Date | null = null,
   ) {}
 
   /**
@@ -187,6 +204,69 @@ export class Account {
       refreshTokenExpiresAt: null,
       previousRefreshTokenHash: null,
       tokenVersion: this.tokenVersion + 1,
+      mustChangePassword: false,
+      temporaryPasswordHash: null,
+      temporaryPasswordExpiresAt: null,
+      temporaryPasswordUsedAt: null,
+    });
+  }
+
+  /**
+   * Issues a temporary password beside the real one. A new one replaces any
+   * pending one and starts unused. `expiresAt` null means it never expires.
+   */
+  withTemporaryPassword(hash: string, expiresAt: Date | null): Account {
+    return this.copyWith({
+      temporaryPasswordHash: hash,
+      temporaryPasswordExpiresAt: expiresAt,
+      temporaryPasswordUsedAt: null,
+    });
+  }
+
+  /** Present and not expired. A missing expiry never expires. */
+  hasLiveTemporaryPassword(now: Date): boolean {
+    return (
+      this.temporaryPasswordHash !== null &&
+      (this.temporaryPasswordExpiresAt === null ||
+        this.temporaryPasswordExpiresAt > now)
+    );
+  }
+
+  hasUsedTemporaryPassword(): boolean {
+    return this.temporaryPasswordUsedAt !== null;
+  }
+
+  /**
+   * First sign-in with the temporary password. The hash stays stored so a
+   * second use can be recognised; the session is restricted until the password
+   * changes.
+   */
+  useTemporaryPassword(now: Date): Account {
+    return this.copyWith({
+      mustChangePassword: true,
+      temporaryPasswordUsedAt: now,
+    });
+  }
+
+  /**
+   * The real password was proven, so any pending temporary password is dropped.
+   * Returns the same instance when there is nothing to clear.
+   */
+  clearTemporaryPassword(): Account {
+    if (
+      !this.mustChangePassword &&
+      this.temporaryPasswordHash === null &&
+      this.temporaryPasswordExpiresAt === null &&
+      this.temporaryPasswordUsedAt === null
+    ) {
+      return this;
+    }
+
+    return this.copyWith({
+      mustChangePassword: false,
+      temporaryPasswordHash: null,
+      temporaryPasswordExpiresAt: null,
+      temporaryPasswordUsedAt: null,
     });
   }
 
@@ -216,6 +296,10 @@ export class Account {
       refreshTokenExpiresAt: this.refreshTokenExpiresAt,
       previousRefreshTokenHash: this.previousRefreshTokenHash,
       tokenVersion: this.tokenVersion,
+      mustChangePassword: this.mustChangePassword,
+      temporaryPasswordHash: this.temporaryPasswordHash,
+      temporaryPasswordExpiresAt: this.temporaryPasswordExpiresAt,
+      temporaryPasswordUsedAt: this.temporaryPasswordUsedAt,
       ...changes,
     };
 
@@ -231,6 +315,10 @@ export class Account {
       next.refreshTokenExpiresAt,
       next.previousRefreshTokenHash,
       next.tokenVersion,
+      next.mustChangePassword,
+      next.temporaryPasswordHash,
+      next.temporaryPasswordExpiresAt,
+      next.temporaryPasswordUsedAt,
     );
   }
 }

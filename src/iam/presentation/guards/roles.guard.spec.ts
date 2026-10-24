@@ -2,7 +2,11 @@ import { ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { UserRoles } from '../../domain/enums/user-roles.enums';
 import { ForbiddenRoleException } from '../../domain/exceptions/forbidden-role.exception';
-import { RolesGuard } from './roles.guard';
+import { PasswordChangeRequiredException } from '../../domain/exceptions/password-change-required.exception';
+import {
+  ALLOW_WHILE_PASSWORD_CHANGE_PENDING_KEY,
+  RolesGuard,
+} from './roles.guard';
 
 const contextFor = (user: unknown): ExecutionContext =>
   ({
@@ -47,5 +51,58 @@ describe('RolesGuard', () => {
     const guard = guardRequiring();
 
     expect(guard.canActivate(contextFor(undefined))).toBe(true);
+  });
+
+  describe('session restricted to changing the password', () => {
+    const restricted = { ...user(UserRoles.ATHLETE), mustChangePassword: true };
+
+    /** Roles and the opt-out flag are looked up by key, as the real Reflector does. */
+    const guardWith = (roles: UserRoles[], allowedWhileRestricted: boolean) =>
+      new RolesGuard({
+        getAllAndOverride: (key: string) =>
+          key === ALLOW_WHILE_PASSWORD_CHANGE_PENDING_KEY
+            ? allowedWhileRestricted
+            : roles,
+      } as unknown as Reflector);
+
+    it('refuses a route that did not opt out, even when the role matches', () => {
+      const guard = guardWith([UserRoles.ATHLETE], false);
+
+      expect(() => guard.canActivate(contextFor(restricted))).toThrow(
+        PasswordChangeRequiredException,
+      );
+    });
+
+    it('refuses a route that requires no roles, so a missing @Roles cannot open it', () => {
+      const guard = guardWith([], false);
+
+      expect(() => guard.canActivate(contextFor(restricted))).toThrow(
+        PasswordChangeRequiredException,
+      );
+    });
+
+    it('allows a route that opted out and whose role matches', () => {
+      const guard = guardWith([UserRoles.ATHLETE], true);
+
+      expect(guard.canActivate(contextFor(restricted))).toBe(true);
+    });
+
+    it('still checks the role on a route that opted out', () => {
+      const guard = guardWith([UserRoles.ADMIN], true);
+
+      expect(() => guard.canActivate(contextFor(restricted))).toThrow(
+        ForbiddenRoleException,
+      );
+    });
+
+    it('does not affect a session that is not restricted', () => {
+      const guard = guardWith([UserRoles.ATHLETE], false);
+
+      expect(
+        guard.canActivate(
+          contextFor({ ...user(UserRoles.ATHLETE), mustChangePassword: false }),
+        ),
+      ).toBe(true);
+    });
   });
 });

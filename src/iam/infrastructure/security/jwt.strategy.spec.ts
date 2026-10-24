@@ -19,7 +19,7 @@ const build = (accounts = [makeAccount()]) =>
   new JwtStrategy(config, new FakeAccountRepository(accounts));
 
 describe('JwtStrategy.validate', () => {
-  it('returns only id, email and role, never a hash', async () => {
+  it('returns only id, email, role and the restriction flag, never a hash', async () => {
     const account = makeAccount({
       role: UserRoles.JUDGE,
       passwordHash: 'secret-password-hash',
@@ -36,7 +36,24 @@ describe('JwtStrategy.validate', () => {
       id: account.id,
       email: account.email,
       role: UserRoles.JUDGE,
+      mustChangePassword: false,
     });
+    expect(JSON.stringify(user)).not.toContain('secret');
+  });
+
+  it('reports a session restricted to changing the password', async () => {
+    const account = makeAccount({
+      mustChangePassword: true,
+      temporaryPasswordHash: 'secret-temporary-hash',
+    });
+
+    const user = await build([account]).validate({
+      sub: account.id,
+      email: account.email,
+      tv: account.tokenVersion,
+    });
+
+    expect(user.mustChangePassword).toBe(true);
     expect(JSON.stringify(user)).not.toContain('secret');
   });
 

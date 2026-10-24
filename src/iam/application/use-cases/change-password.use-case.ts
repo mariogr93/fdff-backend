@@ -37,10 +37,22 @@ export class ChangePasswordUseCase {
       throw new AccountNotFoundException();
     }
 
-    const isCurrentValid = await this.passwordHasher.compare(
+    // In a restricted session the temporary password is the current password.
+    let isCurrentValid = await this.passwordHasher.compare(
       command.currentPlainPassword,
       account.passwordHash,
     );
+    if (
+      !isCurrentValid &&
+      account.mustChangePassword &&
+      account.temporaryPasswordHash !== null &&
+      account.hasLiveTemporaryPassword(new Date())
+    ) {
+      isCurrentValid = await this.passwordHasher.compare(
+        command.currentPlainPassword,
+        account.temporaryPasswordHash,
+      );
+    }
     if (!isCurrentValid) {
       throw new CurrentPasswordIncorrectException();
     }

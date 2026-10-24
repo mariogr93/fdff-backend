@@ -63,6 +63,31 @@ export class AccountOrmEntity {
   @Column({ name: 'token_version', type: 'int', default: 0 })
   tokenVersion: number;
 
+  @Column({ name: 'must_change_password', type: 'boolean', default: false })
+  mustChangePassword: boolean;
+
+  @Column({
+    name: 'temporary_password_hash',
+    type: 'varchar',
+    length: 255,
+    nullable: true,
+  })
+  temporaryPasswordHash: string | null;
+
+  @Column({
+    name: 'temporary_password_expires_at',
+    type: 'timestamptz',
+    nullable: true,
+  })
+  temporaryPasswordExpiresAt: Date | null;
+
+  @Column({
+    name: 'temporary_password_used_at',
+    type: 'timestamptz',
+    nullable: true,
+  })
+  temporaryPasswordUsedAt: Date | null;
+
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;
 

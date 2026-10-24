@@ -34,6 +34,7 @@ const SESSION = {
   refreshToken: 'refresh',
   accountId: 'id',
   role: 'ATHLETE',
+  mustChangePassword: false,
 };
 
 interface ErrorResponse {
@@ -131,6 +132,28 @@ describe('AuthController request filtering', () => {
       expect(res.headers['set-cookie']?.[0]).toContain('HttpOnly');
       expect(login.execute).toHaveBeenCalledTimes(1);
     });
+
+    it.each([true, false])(
+      'returns mustChangePassword=%s from login and refresh, and never the refresh token',
+      async (mustChangePassword) => {
+        login.execute.mockResolvedValue({ ...SESSION, mustChangePassword });
+        refresh.execute.mockResolvedValue({ ...SESSION, mustChangePassword });
+
+        const loginRes = await http().post('/api/auth/login').send(CREDENTIALS);
+        const refreshRes = await http()
+          .post('/api/auth/refresh')
+          .set('Cookie', 'refresh_token=valid');
+
+        for (const res of [loginRes, refreshRes]) {
+          expect(res.body).toEqual({
+            accessToken: 'access',
+            accountId: 'id',
+            role: 'ATHLETE',
+            mustChangePassword,
+          });
+        }
+      },
+    );
 
     it('lets a request with no browser headers through (curl, a server)', async () => {
       const res = await http().post('/api/auth/login').send(CREDENTIALS);

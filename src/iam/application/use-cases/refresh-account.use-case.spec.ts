@@ -52,6 +52,17 @@ describe('RefreshAccountUseCase', () => {
     expect((await repo.findById(account.id))?.tokenVersion).toBe(4);
   });
 
+  it.each([true, false])(
+    'reports mustChangePassword=%s so a page reload keeps the restriction',
+    async (mustChangePassword) => {
+      const { useCase } = build([sessionOf({ mustChangePassword })]);
+
+      const result = await useCase.execute(TOKEN);
+
+      expect(result.mustChangePassword).toBe(mustChangePassword);
+    },
+  );
+
   it('issues a new access token and rotates the refresh token', async () => {
     const account = sessionOf();
     const { useCase, repo, sign } = build([account]);

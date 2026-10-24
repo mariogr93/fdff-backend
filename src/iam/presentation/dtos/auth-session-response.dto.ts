@@ -11,4 +11,9 @@ export class AuthSessionResponseDto {
   accountId: string;
   @ApiProperty({ enum: UserRoles })
   role: string;
+  /**
+   * True after a sign-in with a temporary password. Every route except
+   * `POST /auth/change-password` answers 403 until the password is changed.
+   */
+  mustChangePassword: boolean;
 }

@@ -2,6 +2,7 @@ import { AccountStatus } from '../../domain/enums/account-status.enum';
 import { AccountLockedException } from '../../domain/exceptions/account-locked.exception';
 import { AccountNotActivatedException } from '../../domain/exceptions/account-not-activated.exception';
 import { InvalidCredentialsException } from '../../domain/exceptions/invalid-credentials.exception';
+import { TemporaryPasswordAlreadyUsedException } from '../../domain/exceptions/temporary-password-already-used.exception';
 import { makeAccount } from '../../testing/account.fixture';
 import { FakeAccountRepository } from '../../testing/fake-account.repository';
 import type { AuthPolicy } from '../ports/auth-policy';
@@ -109,8 +110,9 @@ describe('LoginAccountUseCase', () => {
       InvalidCredentialsException,
     );
 
-    // Still pays the bcrypt cost, so timing does not leak account existence.
-    expect(compare).toHaveBeenCalledTimes(1);
+    // Still pays the bcrypt cost (two comparisons, as for any miss), so timing
+    // does not leak account existence.
+    expect(compare).toHaveBeenCalledTimes(2);
   });
 
   it('builds the timing-equalising hash with the real hasher, once', async () => {
@@ -126,7 +128,7 @@ describe('LoginAccountUseCase', () => {
     // Same hasher, so the cost always matches real accounts. Built once.
     expect(hash).toHaveBeenCalledTimes(1);
     expect(compare).toHaveBeenNthCalledWith(1, 'correct', 'hashed');
-    expect(compare).toHaveBeenCalledTimes(2);
+    expect(compare).toHaveBeenCalledTimes(4);
   });
 
   it('still rejects an unknown email when the password happens to match the dummy', async () => {
@@ -189,7 +191,7 @@ describe('LoginAccountUseCase', () => {
       useCase.execute(login(account.email, 'wrong')),
     ).rejects.toThrow(InvalidCredentialsException);
 
-    expect(compare).toHaveBeenCalledTimes(1);
+    expect(compare).toHaveBeenCalledTimes(2);
     // Guessing at a locked account must not extend or deepen the lock.
     const stored = await repo.findById(account.id);
     expect(stored?.failedLoginAttempts).toBe(3);
@@ -267,5 +269,137 @@ describe('LoginAccountUseCase', () => {
     expect((await repo.findById(account.id))?.refreshTokenHash).not.toBe(
       'old-hash',
     );
+  });
+
+  describe('temporary password', () => {
+    /** Accepts "real-pass" only against the real hash and "temp-pass" only against the temporary one. */
+    const buildTemp = (overrides: Parameters<typeof makeAccount>[0] = {}) => {
+      const account = makeAccount({
+        passwordHash: 'real-hash',
+        temporaryPasswordHash: 'temp-hash',
+        ...overrides,
+      });
+      const repo = new FakeAccountRepository([account]);
+      const compare = jest.fn((plain: string, hash: string) =>
+        Promise.resolve(
+          (plain === 'real-pass' && hash === 'real-hash') ||
+            (plain === 'temp-pass' && hash === 'temp-hash'),
+        ),
+      );
+      const passwordHasher: IPasswordHasherPort = {
+        hash: jest.fn(() => Promise.resolve('dummy')),
+        compare,
+      };
+      const tokenService: ITokenServicePort = {
+        sign: jest.fn(() => Promise.resolve({ accessToken: 'access-token' })),
+      };
+      const useCase = new LoginAccountUseCase(
+        repo,
+        passwordHasher,
+        tokenService,
+        policy,
+        new FakeRefreshTokenService(),
+      );
+
+      return { useCase, repo, compare, account };
+    };
+
+    it('costs one comparison for the real password and is not restricted', async () => {
+      const { useCase, compare, account } = buildTemp();
+
+      const result = await useCase.execute(login(account.email, 'real-pass'));
+
+      expect(compare).toHaveBeenCalledTimes(1);
+      expect(result.mustChangePassword).toBe(false);
+    });
+
+    it('drops a pending temporary password when the real password is used', async () => {
+      const { useCase, repo, account } = buildTemp({
+        mustChangePassword: true,
+        temporaryPasswordUsedAt: new Date(),
+      });
+
+      await useCase.execute(login(account.email, 'real-pass'));
+
+      const stored = await repo.findById(account.id);
+      expect(stored?.temporaryPasswordHash).toBeNull();
+      expect(stored?.temporaryPasswordUsedAt).toBeNull();
+      expect(stored?.mustChangePassword).toBe(false);
+    });
+
+    it('lets the temporary password in once, restricted, and marks it used', async () => {
+      const { useCase, repo, compare, account } = buildTemp();
+
+      const result = await useCase.execute(login(account.email, 'temp-pass'));
+
+      expect(compare).toHaveBeenCalledTimes(2);
+      expect(result.mustChangePassword).toBe(true);
+      const stored = await repo.findById(account.id);
+      expect(stored?.mustChangePassword).toBe(true);
+      expect(stored?.temporaryPasswordUsedAt).not.toBeNull();
+      // Kept, so a second use can be recognised.
+      expect(stored?.temporaryPasswordHash).toBe('temp-hash');
+    });
+
+    it('deactivates the account when the temporary password is used a second time', async () => {
+      const { useCase, repo, account } = buildTemp({
+        mustChangePassword: true,
+        temporaryPasswordUsedAt: new Date(),
+        refreshTokenHash: 'session',
+      });
+
+      await expect(
+        useCase.execute(login(account.email, 'temp-pass')),
+      ).rejects.toThrow(TemporaryPasswordAlreadyUsedException);
+
+      const stored = await repo.findById(account.id);
+      expect(stored?.status).toBe(AccountStatus.INACTIVE);
+      expect(stored?.refreshTokenHash).toBeNull();
+    });
+
+    it('refuses an expired temporary password and counts the attempt', async () => {
+      const { useCase, repo, account } = buildTemp({
+        temporaryPasswordExpiresAt: new Date(Date.now() - 1_000),
+      });
+
+      await expect(
+        useCase.execute(login(account.email, 'temp-pass')),
+      ).rejects.toThrow(InvalidCredentialsException);
+
+      expect((await repo.findById(account.id))?.failedLoginAttempts).toBe(1);
+    });
+
+    it('accepts a temporary password with no expiry however old it is', async () => {
+      const { useCase, account } = buildTemp({
+        temporaryPasswordExpiresAt: null,
+      });
+
+      await expect(
+        useCase.execute(login(account.email, 'temp-pass')),
+      ).resolves.toMatchObject({ mustChangePassword: true });
+    });
+
+    it('costs two comparisons for a wrong password, with or without a temporary one', async () => {
+      const withTemp = buildTemp();
+      const withoutTemp = buildTemp({ temporaryPasswordHash: null });
+
+      await expect(
+        withTemp.useCase.execute(login(withTemp.account.email, 'wrong')),
+      ).rejects.toThrow(InvalidCredentialsException);
+      await expect(
+        withoutTemp.useCase.execute(login(withoutTemp.account.email, 'wrong')),
+      ).rejects.toThrow(InvalidCredentialsException);
+
+      expect(withTemp.compare).toHaveBeenCalledTimes(2);
+      expect(withoutTemp.compare).toHaveBeenCalledTimes(2);
+    });
+
+    it('refuses a pending account even with a good temporary password', async () => {
+      const { useCase, account } = buildTemp({ status: AccountStatus.PENDING });
+
+      await expect(
+        useCase.execute(login(account.email, 'temp-pass')),
+      ).rejects.toThrow(AccountNotActivatedException);
+    });
   });
 });

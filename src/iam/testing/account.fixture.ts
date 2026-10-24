@@ -14,6 +14,10 @@ export interface AccountOverrides {
   refreshTokenExpiresAt?: Date | null;
   previousRefreshTokenHash?: string | null;
   tokenVersion?: number;
+  mustChangePassword?: boolean;
+  temporaryPasswordHash?: string | null;
+  temporaryPasswordExpiresAt?: Date | null;
+  temporaryPasswordUsedAt?: Date | null;
 }
 
 /**
@@ -33,5 +37,9 @@ export function makeAccount(overrides: AccountOverrides = {}): Account {
     overrides.refreshTokenExpiresAt ?? null,
     overrides.previousRefreshTokenHash ?? null,
     overrides.tokenVersion ?? 0,
+    overrides.mustChangePassword ?? false,
+    overrides.temporaryPasswordHash ?? null,
+    overrides.temporaryPasswordExpiresAt ?? null,
+    overrides.temporaryPasswordUsedAt ?? null,
   );
 }

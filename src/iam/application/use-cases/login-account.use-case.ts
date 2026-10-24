@@ -2,6 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import { AccountLockedException } from '../../domain/exceptions/account-locked.exception';
 import { AccountNotActivatedException } from '../../domain/exceptions/account-not-activated.exception';
 import { InvalidCredentialsException } from '../../domain/exceptions/invalid-credentials.exception';
+import { TemporaryPasswordAlreadyUsedException } from '../../domain/exceptions/temporary-password-already-used.exception';
 import { normalizeEmail } from '../../domain/normalize-email';
 import { type AuthPolicy, I_AUTH_POLICY } from '../ports/auth-policy';
 import {
@@ -32,6 +33,8 @@ export interface IAuthResult {
   refreshToken: string;
   accountId: string;
   role: string;
+  /** True after a sign-in with a temporary password: the session may only change the password. */
+  mustChangePassword: boolean;
 }
 
 @Injectable()
@@ -66,13 +69,27 @@ export class LoginAccountUseCase {
       normalizeEmail(command.email),
     );
 
-    // Exactly one bcrypt comparison on every path, whether the email is
-    // unknown, the account is locked, or the password is wrong, so response
-    // time reveals nothing about which of those it was.
-    const isPasswordValid = await this.passwordHasher.compare(
+    // A correct real password costs one bcrypt comparison. Every miss costs
+    // exactly two (the second against the temporary hash, or the dummy when
+    // there is none), whether the email is unknown, the account is locked, the
+    // password is wrong or a temporary password is pending. Response time for
+    // a failed attempt therefore reveals nothing about the account.
+    const matchesReal = await this.passwordHasher.compare(
       command.plainPassword,
       account?.passwordHash ?? (await this.getDummyHash()),
     );
+    // Skipped only for an existing account whose real password matched: an
+    // unknown email always pays both, whatever the dummy comparison returned.
+    const matchesTemporary =
+      account && matchesReal
+        ? false
+        : await this.passwordHasher.compare(
+            command.plainPassword,
+            account?.temporaryPasswordHash ?? (await this.getDummyHash()),
+          );
+    const isTemporaryValid =
+      matchesTemporary && account?.hasLiveTemporaryPassword(now) === true;
+    const isPasswordValid = matchesReal || isTemporaryValid;
 
     // Only someone who knows the password learns the account is locked.
     // Everyone else gets the generic 401, and their guess is not counted: a
@@ -102,9 +119,25 @@ export class LoginAccountUseCase {
       throw new AccountNotActivatedException();
     }
 
+    let signedIn = account;
+    if (matchesReal) {
+      // The real password was proven: a pending temporary password is dropped.
+      signedIn = account.clearTemporaryPassword();
+    } else {
+      // A temporary password works once. Using it again without having changed
+      // the password deactivates the account; an administrator reactivates it.
+      if (account.hasUsedTemporaryPassword()) {
+        await this.accountRepo.update(
+          account.clearLoginAttempts().deactivate(),
+        );
+        throw new TemporaryPasswordAlreadyUsedException();
+      }
+      signedIn = account.useTemporaryPassword(now);
+    }
+
     const refreshToken = this.refreshTokens.generate();
     await this.accountRepo.update(
-      account
+      signedIn
         .clearLoginAttempts()
         .withRefreshToken(
           this.refreshTokens.hash(refreshToken),
@@ -123,6 +156,7 @@ export class LoginAccountUseCase {
       refreshToken,
       accountId: account.id,
       role: account.role.toString(),
+      mustChangePassword: signedIn.mustChangePassword,
     };
   }
 }

@@ -416,6 +416,80 @@ describe('Account', () => {
     });
   });
 
+  describe('temporary password', () => {
+    const past = new Date('2026-10-05T11:00:00.000Z');
+    const future = new Date('2026-10-05T13:00:00.000Z');
+
+    it('is issued beside the real password, unused, and replaces a pending one', () => {
+      const issued = makeAccount({
+        temporaryPasswordHash: 'older',
+        temporaryPasswordUsedAt: past,
+      }).withTemporaryPassword('temp', future);
+
+      expect(issued.temporaryPasswordHash).toBe('temp');
+      expect(issued.temporaryPasswordExpiresAt).toEqual(future);
+      expect(issued.temporaryPasswordUsedAt).toBeNull();
+      expect(issued.passwordHash).toBe(makeAccount().passwordHash);
+      expect(issued.mustChangePassword).toBe(false);
+    });
+
+    it.each([
+      ['no temporary password', null, null, false],
+      ['no expiry', 'temp', null, true],
+      ['a future expiry', 'temp', future, true],
+      ['an expired one', 'temp', past, false],
+    ])('is live with %s -> %s', (_label, hash, expiresAt, live) => {
+      const account = makeAccount({
+        temporaryPasswordHash: hash,
+        temporaryPasswordExpiresAt: expiresAt,
+      });
+
+      expect(account.hasLiveTemporaryPassword(NOW)).toBe(live);
+    });
+
+    it('marks the account restricted and used on first use, keeping the hash', () => {
+      const used = makeAccount({
+        temporaryPasswordHash: 'temp',
+      }).useTemporaryPassword(NOW);
+
+      expect(used.mustChangePassword).toBe(true);
+      expect(used.hasUsedTemporaryPassword()).toBe(true);
+      expect(used.temporaryPasswordHash).toBe('temp');
+    });
+
+    it('is dropped, with the restriction, when the real password is proven', () => {
+      const cleared = makeAccount({
+        mustChangePassword: true,
+        temporaryPasswordHash: 'temp',
+        temporaryPasswordUsedAt: NOW,
+      }).clearTemporaryPassword();
+
+      expect(cleared.mustChangePassword).toBe(false);
+      expect(cleared.temporaryPasswordHash).toBeNull();
+      expect(cleared.temporaryPasswordUsedAt).toBeNull();
+    });
+
+    it('returns the same instance when there is nothing to clear', () => {
+      const account = makeAccount();
+
+      expect(account.clearTemporaryPassword()).toBe(account);
+    });
+
+    it('is dropped, with the restriction, when the password changes', () => {
+      const changed = makeAccount({
+        mustChangePassword: true,
+        temporaryPasswordHash: 'temp',
+        temporaryPasswordExpiresAt: future,
+        temporaryPasswordUsedAt: NOW,
+      }).changePassword('new');
+
+      expect(changed.mustChangePassword).toBe(false);
+      expect(changed.temporaryPasswordHash).toBeNull();
+      expect(changed.temporaryPasswordExpiresAt).toBeNull();
+      expect(changed.temporaryPasswordUsedAt).toBeNull();
+    });
+  });
+
   describe('changePassword', () => {
     const account = makeAccount({
       passwordHash: 'old',

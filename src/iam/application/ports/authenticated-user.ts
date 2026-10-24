@@ -9,4 +9,6 @@ export interface AuthenticatedUser {
   id: string;
   email: string;
   role: UserRoles;
+  /** Read from the database per request. Restricts the session to changing the password. */
+  mustChangePassword: boolean;
 }
