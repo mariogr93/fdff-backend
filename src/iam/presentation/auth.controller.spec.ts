@@ -10,6 +10,7 @@ import { App } from 'supertest/types';
 import { configureApp } from '../../configure-app';
 import { I_AUTH_POLICY } from '../application/ports/auth-policy';
 import { ChangePasswordUseCase } from '../application/use-cases/change-password.use-case';
+import { RequestTemporaryPasswordUseCase } from '../application/use-cases/request-temporary-password.use-case';
 import { LoginAccountUseCase } from '../application/use-cases/login-account.use-case';
 import { LogoutAccountUseCase } from '../application/use-cases/logout-account.use-case';
 import { RefreshAccountUseCase } from '../application/use-cases/refresh-account.use-case';
@@ -57,12 +58,14 @@ describe('AuthController request filtering', () => {
   let refresh: { execute: jest.Mock };
   let register: { execute: jest.Mock };
   let changePassword: { execute: jest.Mock };
+  let forgot: { execute: jest.Mock };
   let signedInAs: { id: string; role: UserRoles } | null;
 
   beforeEach(async () => {
     process.env.FRONTEND_URL = `${APP}, ${ADMIN_APP}`;
     signedInAs = { id: 'account-1', role: UserRoles.ATHLETE };
     changePassword = { execute: jest.fn().mockResolvedValue(undefined) };
+    forgot = { execute: jest.fn().mockResolvedValue(undefined) };
     login = { execute: jest.fn().mockResolvedValue(SESSION) };
     logout = { execute: jest.fn().mockResolvedValue(undefined) };
     refresh = { execute: jest.fn().mockResolvedValue(SESSION) };
@@ -82,6 +85,7 @@ describe('AuthController request filtering', () => {
         SameOriginGuard,
         RolesGuard,
         { provide: ChangePasswordUseCase, useValue: changePassword },
+        { provide: RequestTemporaryPasswordUseCase, useValue: forgot },
         { provide: LoginAccountUseCase, useValue: login },
         { provide: LogoutAccountUseCase, useValue: logout },
         { provide: RefreshAccountUseCase, useValue: refresh },
@@ -167,6 +171,11 @@ describe('AuthController request filtering', () => {
       ['logout', '/api/auth/logout', undefined],
       ['refresh', '/api/auth/refresh', undefined],
       ['change-password', '/api/auth/change-password', PASSWORDS],
+      [
+        'forgot-password',
+        '/api/auth/forgot-password',
+        { email: CREDENTIALS.email },
+      ],
     ])(
       'refuses %s from a foreign origin before any use case runs',
       async (_name, path, body) => {
@@ -187,6 +196,7 @@ describe('AuthController request filtering', () => {
           refresh,
           register,
           changePassword,
+          forgot,
         ]) {
           expect(useCase.execute).not.toHaveBeenCalled();
         }
@@ -279,6 +289,38 @@ describe('AuthController request filtering', () => {
         expect(res.status).toBe(200);
       },
     );
+  });
+
+  describe('forgot password', () => {
+    const post = () =>
+      http().post('/api/auth/forgot-password').set('Origin', APP);
+
+    it('answers 202 with an empty body and passes the email on', async () => {
+      const res = await post().send({ email: 'athlete@fdff.test' });
+
+      expect(res.status).toBe(202);
+      expect(res.text).toBe('');
+      expect(forgot.execute).toHaveBeenCalledWith({
+        email: 'athlete@fdff.test',
+      });
+    });
+
+    it('needs no session', async () => {
+      signedInAs = null;
+
+      expect((await post().send({ email: 'a@fdff.test' })).status).toBe(202);
+    });
+
+    it.each([
+      {},
+      { email: 'not-an-email' },
+      { email: 'a@fdff.test', role: 'ADMIN' },
+    ])('rejects %j with 400 before the use case runs', async (body) => {
+      const res = await post().send(body);
+
+      expect(res.status).toBe(400);
+      expect(forgot.execute).not.toHaveBeenCalled();
+    });
   });
 
   describe('change password', () => {

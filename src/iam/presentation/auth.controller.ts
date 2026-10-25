@@ -11,6 +11,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import {
+  ApiAcceptedResponse,
   ApiBadRequestResponse,
   ApiBearerAuth,
   ApiCookieAuth,
@@ -33,6 +34,8 @@ import type { AuthenticatedUser } from '../application/ports/authenticated-user'
 import { ChangePasswordUseCase } from '../application/use-cases/change-password.use-case';
 import { UserRoles } from '../domain/enums/user-roles.enums';
 import { ChangePasswordDto } from './dtos/change-password.dto';
+import { ForgotPasswordDto } from './dtos/forgot-password.dto';
+import { RequestTemporaryPasswordUseCase } from '../application/use-cases/request-temporary-password.use-case';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import {
   AllowWhilePasswordChangePending,
@@ -82,6 +85,7 @@ export class AuthController {
     private readonly logoutAccount: LogoutAccountUseCase,
     private readonly refreshAccount: RefreshAccountUseCase,
     private readonly changePasswordUseCase: ChangePasswordUseCase,
+    private readonly requestTemporaryPassword: RequestTemporaryPasswordUseCase,
     @Inject(I_AUTH_POLICY)
     private readonly policy: AuthPolicy,
   ) {}
@@ -109,6 +113,24 @@ export class AuthController {
       role: account.role,
       status: account.status,
     };
+  }
+
+  // Public. Always 202, whatever the address, so it cannot be used to learn
+  // which emails have accounts.
+  @Post('forgot-password')
+  @Throttle({ default: { limit: 5, ttl: 3600000 } })
+  @HttpCode(HttpStatus.ACCEPTED)
+  @ApiOperation({
+    summary:
+      'Forgot password. Emails a one-time temporary password (valid 1 hour) to an active account. Always 202.',
+  })
+  @ApiAcceptedResponse({
+    description:
+      'Accepted. Sent only if the address belongs to an active account; the answer never says.',
+  })
+  @ApiBadRequestResponse({ description: 'The email is not valid.' })
+  async forgotPassword(@Body() dto: ForgotPasswordDto): Promise<void> {
+    await this.requestTemporaryPassword.execute({ email: dto.email });
   }
 
   @Post('login')

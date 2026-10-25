@@ -34,7 +34,7 @@ describe('validateEnv', () => {
     );
   });
 
-  it.each(['development', 'production', 'test'])('accepts NODE_ENV=%s', (v) => {
+  it.each(['development', 'test'])('accepts NODE_ENV=%s', (v) => {
     expect(() =>
       validateEnv({
         ...valid,
@@ -42,6 +42,49 @@ describe('validateEnv', () => {
         FRONTEND_URL: 'https://app.fdff.test',
       }),
     ).not.toThrow();
+  });
+
+  it('accepts NODE_ENV=production itself; only the missing mail provider fails', () => {
+    expect(() =>
+      validateEnv({
+        ...valid,
+        NODE_ENV: 'production',
+        FRONTEND_URL: 'https://app.fdff.test',
+      }),
+    ).toThrow(/^(?!.*NODE_ENV).*MAIL_DRIVER/);
+  });
+
+  describe('MAIL_DRIVER', () => {
+    it.each([undefined, '', 'outbox'])(
+      'accepts %j outside production',
+      (MAIL_DRIVER) => {
+        for (const NODE_ENV of ['development', 'test']) {
+          expect(() =>
+            validateEnv({ ...valid, NODE_ENV, MAIL_DRIVER }),
+          ).not.toThrow();
+        }
+      },
+    );
+
+    it.each(['smtp', 'Outbox', 'console'])('rejects the unknown %j', (v) => {
+      expect(() => validateEnv({ ...valid, MAIL_DRIVER: v })).toThrow(
+        'MAIL_DRIVER',
+      );
+    });
+
+    it.each([undefined, 'outbox'])(
+      'refuses production with %j: no real provider exists yet',
+      (MAIL_DRIVER) => {
+        expect(() =>
+          validateEnv({
+            ...valid,
+            NODE_ENV: 'production',
+            FRONTEND_URL: 'https://app.fdff.test',
+            MAIL_DRIVER,
+          }),
+        ).toThrow('MAIL_DRIVER');
+      },
+    );
   });
 
   it.each(['DB_PORT', 'SALT_ROUNDS', 'REFRESH_TOKEN_EXPIRES_DAYS'])(
@@ -79,9 +122,11 @@ describe('validateEnv', () => {
       'https://app.fdff.test,https://admin.fdff.test:8443',
       ' https://app.fdff.test , http://localhost:5173 ',
     ])('accepts %j in production', (FRONTEND_URL) => {
+      // Production still fails on MAIL_DRIVER until a provider exists; the
+      // point here is that FRONTEND_URL is not among the problems.
       expect(() =>
         validateEnv({ ...valid, NODE_ENV: 'production', FRONTEND_URL }),
-      ).not.toThrow();
+      ).not.toThrow('FRONTEND_URL');
     });
 
     it.each([

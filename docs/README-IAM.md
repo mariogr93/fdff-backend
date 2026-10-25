@@ -34,6 +34,9 @@ All routes are under the global `/api` prefix.
 | `POST` | `/auth/logout` | none (cookie only) | 5 / min | `200` |
 | `POST` | `/auth/refresh` | none (cookie only) | 10 / min | `200` |
 | `POST` | `/auth/change-password` | bearer token, any role | 2 / 10 min | `204` |
+| `POST` | `/auth/forgot-password` | none (public) | 5 / hour | `202` |
+
+`forgot-password` takes `{ email }` and always answers `202` with no body. Only an `ACTIVE` account gets a temporary password (valid one hour, one sign-in) by mail; the real password keeps working. See the temporary password section.
 
 `change-password` is the only route in this controller that needs a bearer token, so its `JwtAuthGuard`, `RolesGuard` and `@Roles` sit on the method, not the class (the rest of the controller is public). Body `{ currentPassword, newPassword }`. It ends every session of the account, this one included, and clears the refresh cookie: the client signs in again with the new password. All three password flows end in `Account.changePassword()`.
 
@@ -147,6 +150,7 @@ Repository methods: `findById`, `findByEmail`, `findByRefreshTokenHash`, `findBy
 | `LogoutAccountUseCase` | clears the stored refresh token and raises `tokenVersion`, so the access tokens die too; tolerates a missing/unknown token |
 | `ActivateAccountUseCase` / `DeactivateAccountUseCase` | existence → `404`, then the domain transition. Deactivate first refuses `actorId === accountId` (`409`), and refuses to deactivate the last active `ADMIN` (`409`, `LastAdminException`; counted through `countByRoleAndStatus`, not atomic with the write) |
 | `ChangePasswordUseCase` | wrong current password → `400`; new equal to current → `400`. Hashes the new one and calls `Account.changePassword()` (ends all sessions, raises `tokenVersion`). Opens no session |
+| `RequestTemporaryPasswordUseCase` | forgot password: same answer for every address; generates and hashes a temporary password on every path (uniform timing); only an `ACTIVE` account stores it (`withTemporaryPassword`, 1 hour) and gets the mail, which is sent without being awaited |
 | `GetAccountsUseCase` | always paginated |
 
 ### Login flow, and why its order matters
@@ -180,7 +184,7 @@ Set-Cookie: refresh_token  +  JSON { accessToken, accountId, role, mustChangePas
 
 ### Temporary password
 
-A temporary password is stored beside the real one (`withTemporaryPassword`), so the real password keeps working and a stranger cannot lock the owner out. Nothing issues one yet (a later slice does: forgot password, coach-created athletes).
+A temporary password is stored beside the real one (`withTemporaryPassword`), so the real password keeps working and a stranger cannot lock the owner out. `POST /auth/forgot-password` issues one (valid one hour); coach-created athletes will too (no expiry). The generator (`I_TEMPORARY_PASSWORD_GENERATOR`) makes 8 characters with upper, lower, digit and exactly one symbol, without look-alikes (I, O, l, o, 0, 1). The mail goes through `I_MAILER`; the only adapter is `OutboxMailer`, which writes each message to `MAIL_OUTBOX_DIR` (default `.dev-outbox/`, gitignored, files mode 600) and never logs it.
 
 - **First sign-in with it** opens a restricted session: `mustChangePassword` is true in the login and refresh answers, and `RolesGuard` answers `403 PasswordChangeRequiredException` on every guarded route except those marked `@AllowWhilePasswordChangePending()` (only `POST /auth/change-password`). The flag is read from the database per request, not from the token.
 - **Changing the password** accepts the temporary password as `currentPassword`, clears the flag and the temporary password, and ends every session: sign in again with the new password.
@@ -251,6 +255,8 @@ There must be **exactly one** `DomainException` class: `@Catch(DomainException)`
 | `NODE_ENV` | **required** | `development`, `production` or `test`; refresh cookie is `Secure` in every environment except `development` |
 | `FRONTEND_URL` | `http://localhost:5173` in development and test only; **required in production** | CORS allowlist: comma-separated origins (`scheme://host[:port]`, no path, trailing slash or wildcard). An origin not on the list gets no CORS headers |
 | `PORT` | `3000` | HTTP port |
+| `MAIL_DRIVER` | `outbox` | Mail adapter. `outbox` writes messages to files and is refused in production, so **production does not start until a real provider exists** |
+| `MAIL_OUTBOX_DIR` | `.dev-outbox` | Where `outbox` writes messages (they hold temporary passwords) |
 | `ADMIN_EMAIL` / `ADMIN_PASSWORD` | — | `npm run db:seed` only. The email is lowercased; the password must meet the signup strength rule (8-20 characters, upper, lower, digit, special) or the seed refuses |
 
 Startup validation (`src/shared/config/validate-env.ts`) refuses to boot, and the TypeORM CLI refuses to run, if a required variable is missing, if `DB_PORT`, `SALT_ROUNDS` or `REFRESH_TOKEN_EXPIRES_DAYS` is set but not a positive integer, if `FRONTEND_URL` is missing in production, or if it holds anything but bare origins. The error names variables, never values.
@@ -272,7 +278,7 @@ Password policy: 8–20 characters, `@IsPasswordStrong` (see `shared/validators/
 
 - No per-token revocation: revoking works per account (`tokenVersion`), so it cannot cancel one device's access token and keep another's.
 - Reuse detection recognises only the immediately previous refresh token, not the whole token family.
-- No email verification or password reset. Signed-in password change exists (`POST /auth/change-password`), and so does the forced change after a temporary password; nothing issues a temporary password yet.
+- No email verification. No real mail provider: forgot password works in development through the outbox only, and production refuses to start until a provider exists.
 - No audit log of account changes.
 - No CI, no Supabase, no Traefik.
 - Planned hardening and design decisions: `docs/NEXT-FEATURES.md`.
@@ -297,7 +303,7 @@ src/iam/
 │   ├── ports/{account.repository.interface,accounts-query,
 │   │           password-hasher.port,token.service.port,
 │   │           refresh-token.port,auth-policy}
-│   └── use-cases/                    # 9 use cases
+│   └── use-cases/                    # 10 use cases
 ├── infrastructure/
 │   ├── persistence/{account.orm-entity,typeorm-account.repository}
 │   └── security/{jwt.strategy,jwt-token.service,jwt-key.util,
@@ -349,6 +355,7 @@ Everything a browser client must do to work with this API. The machine-readable 
 | `GET /accounts` | `200 { data: [{ id, email, role, status }], total, page, limit }` |
 | `POST /accounts` | `201 { id, email, role, status: "ACTIVE" }` |
 | `POST /accounts/activate/:id`, `/deactivate/:id` | `204`, empty body |
+| `POST /auth/forgot-password` | `202`, empty body, for every address. Tell the person to check their email; never say whether the address exists |
 | `POST /auth/change-password` | `204`, empty body, refresh cookie cleared. Drop the in-memory access token and send the user to sign-in |
 
 Errors are JSON with `statusCode`:
@@ -396,4 +403,4 @@ Errors are JSON with `statusCode`:
 
 ### Not available yet
 
-No password reset, no endpoint that issues a temporary password, no email confirmation, no athlete profile, categories, competitions or results endpoints. Do not build UI that calls them as if they existed; see section 11 and `docs/PROJECT_CONTEXT.md`.
+No real email delivery (forgot password writes to a local outbox in development), no email confirmation, no athlete profile, categories, competitions or results endpoints. Do not build UI that calls them as if they existed; see section 11 and `docs/PROJECT_CONTEXT.md`.

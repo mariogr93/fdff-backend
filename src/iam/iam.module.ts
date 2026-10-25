@@ -13,6 +13,11 @@ import { I_PASSWORD_HASHER } from './application/ports/password-hasher.port';
 import { I_REFRESH_TOKEN_SERVICE } from './application/ports/refresh-token.port';
 import { I_TOKEN_SERVICE } from './application/ports/token.service.port';
 import { ChangePasswordUseCase } from './application/use-cases/change-password.use-case';
+import { RequestTemporaryPasswordUseCase } from './application/use-cases/request-temporary-password.use-case';
+import { I_MAILER } from './application/ports/mailer.port';
+import { I_TEMPORARY_PASSWORD_GENERATOR } from './application/ports/temporary-password-generator.port';
+import { OutboxMailer } from './infrastructure/mail/outbox-mailer';
+import { CryptoTemporaryPasswordGenerator } from './infrastructure/security/crypto-temporary-password-generator';
 import { GetAccountsUseCase } from './application/use-cases/get-accounts.use-case';
 import { LoginAccountUseCase } from './application/use-cases/login-account.use-case';
 import { RefreshAccountUseCase } from './application/use-cases/refresh-account.use-case';
@@ -62,6 +67,17 @@ import { LogoutAccountUseCase } from './application/use-cases/logout-account.use
   providers: [
     JwtStrategy,
     ChangePasswordUseCase,
+    RequestTemporaryPasswordUseCase,
+    {
+      // One driver today; validateEnv refuses it in production until a real
+      // provider exists.
+      provide: I_MAILER,
+      useClass: OutboxMailer,
+    },
+    {
+      provide: I_TEMPORARY_PASSWORD_GENERATOR,
+      useClass: CryptoTemporaryPasswordGenerator,
+    },
     RolesGuard,
     JwtAuthGuard,
     SameOriginGuard,

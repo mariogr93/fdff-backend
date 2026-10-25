@@ -7,6 +7,7 @@ const POSITIVE_INTEGERS = [
   'REFRESH_TOKEN_EXPIRES_DAYS',
 ] as const;
 const ENVIRONMENTS = ['development', 'production', 'test'];
+const MAIL_DRIVERS = ['outbox'];
 
 /**
  * Fails startup on a broken environment instead of running with a guessable
@@ -29,6 +30,7 @@ export function validateEnv(
   }
 
   checkFrontendUrl(env, problems);
+  checkMailDriver(env, problems);
 
   for (const name of POSITIVE_INTEGERS) {
     const value = env[name];
@@ -66,6 +68,27 @@ function checkFrontendUrl(
   if (origins.length === 0 || !origins.every(isBareOrigin)) {
     problems.push(
       'FRONTEND_URL must be a comma-separated list of origins such as https://host[:port] (no path, trailing slash or wildcard)',
+    );
+  }
+}
+
+/**
+ * MAIL_DRIVER picks the mail adapter. The only one today is `outbox`, which
+ * writes messages to local files: fine in development and test, never in
+ * production, where nothing would reach the person. So production refuses to
+ * start until a real provider exists.
+ */
+function checkMailDriver(
+  env: Record<string, unknown>,
+  problems: string[],
+): void {
+  const driver = env.MAIL_DRIVER;
+  if (isNonEmptyString(driver) && !MAIL_DRIVERS.includes(driver as string)) {
+    problems.push(`MAIL_DRIVER must be one of: ${MAIL_DRIVERS.join(', ')}`);
+  }
+  if (env.NODE_ENV === 'production') {
+    problems.push(
+      'MAIL_DRIVER has no production provider yet; outbox is for development and test only',
     );
   }
 }

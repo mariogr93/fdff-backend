@@ -11,6 +11,7 @@ import {
 import { I_AUTH_POLICY } from '../application/ports/auth-policy';
 import { ActivateAccountUseCase } from '../application/use-cases/activate-account.use-case';
 import { ChangePasswordUseCase } from '../application/use-cases/change-password.use-case';
+import { RequestTemporaryPasswordUseCase } from '../application/use-cases/request-temporary-password.use-case';
 import { CreateAccountUseCase } from '../application/use-cases/create-account.use-case';
 import { DeactivateAccountUseCase } from '../application/use-cases/deactivate-account.use-case';
 import { GetAccountsUseCase } from '../application/use-cases/get-accounts.use-case';
@@ -41,6 +42,7 @@ describe('OpenAPI document', () => {
         SameOriginGuard,
         ...[
           ChangePasswordUseCase,
+          RequestTemporaryPasswordUseCase,
           RegisterAccountUseCase,
           LoginAccountUseCase,
           LogoutAccountUseCase,
@@ -66,7 +68,7 @@ describe('OpenAPI document', () => {
       method
     ];
 
-  it('documents all nine routes under the /api prefix', () => {
+  it('documents all ten routes under the /api prefix', () => {
     expect(
       Object.entries(doc.paths).flatMap(([path, item]) =>
         Object.keys(item).map((method) => `${method.toUpperCase()} ${path}`),
@@ -78,6 +80,7 @@ describe('OpenAPI document', () => {
         'POST /api/auth/logout',
         'POST /api/auth/refresh',
         'POST /api/auth/change-password',
+        'POST /api/auth/forgot-password',
         'GET /api/accounts',
         'POST /api/accounts',
         'POST /api/accounts/activate/{accountId}',
@@ -109,6 +112,9 @@ describe('OpenAPI document', () => {
     ]);
     expect(operation('post', '/api/auth/login')?.security).toBeUndefined();
     expect(operation('post', '/api/auth/register')?.security).toBeUndefined();
+    expect(
+      operation('post', '/api/auth/forgot-password')?.security,
+    ).toBeUndefined();
   });
 
   it('declares both security schemes', () => {
