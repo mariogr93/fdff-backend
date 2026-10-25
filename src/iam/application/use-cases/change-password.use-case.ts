@@ -38,6 +38,9 @@ export class ChangePasswordUseCase {
     }
 
     // In a restricted session the temporary password is the current password.
+    // Its expiry is not checked here: it was proven live at sign-in, and the
+    // session that sign-in opened is what this call runs in. Checking again
+    // would strand someone who took longer than the expiry to choose.
     let isCurrentValid = await this.passwordHasher.compare(
       command.currentPlainPassword,
       account.passwordHash,
@@ -46,7 +49,7 @@ export class ChangePasswordUseCase {
       !isCurrentValid &&
       account.mustChangePassword &&
       account.temporaryPasswordHash !== null &&
-      account.hasLiveTemporaryPassword(new Date())
+      account.hasUsedTemporaryPassword()
     ) {
       isCurrentValid = await this.passwordHasher.compare(
         command.currentPlainPassword,

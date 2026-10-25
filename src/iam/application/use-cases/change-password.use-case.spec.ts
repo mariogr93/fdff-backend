@@ -123,10 +123,23 @@ describe('ChangePasswordUseCase', () => {
       expect(stored?.passwordHash).toBe('hash:Brand#New2');
     });
 
-    it('refuses an expired temporary password', async () => {
+    it('still accepts the temporary password after it expired, since the sign-in already proved it', async () => {
       const account = restricted({
         temporaryPasswordExpiresAt: new Date(Date.now() - 1_000),
       });
+      const { useCase, repo } = buildRestricted(account);
+
+      await useCase.execute({
+        accountId: account.id,
+        currentPlainPassword: 'Temp#Pass1',
+        newPlainPassword: 'Brand#New2',
+      });
+
+      expect((await repo.findById(account.id))?.mustChangePassword).toBe(false);
+    });
+
+    it('refuses a temporary password that was never used to sign in', async () => {
+      const account = restricted({ temporaryPasswordUsedAt: null });
       const { useCase } = buildRestricted(account);
 
       await expect(
