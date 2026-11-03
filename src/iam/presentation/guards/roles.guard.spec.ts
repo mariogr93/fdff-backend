@@ -47,10 +47,12 @@ describe('RolesGuard', () => {
     );
   });
 
-  it('allows everything when no roles are required', () => {
+  it('refuses a route that declares no roles', () => {
     const guard = guardRequiring();
 
-    expect(guard.canActivate(contextFor(undefined))).toBe(true);
+    expect(() => guard.canActivate(contextFor(user(UserRoles.ADMIN)))).toThrow(
+      ForbiddenRoleException,
+    );
   });
 
   describe('session restricted to changing the password', () => {

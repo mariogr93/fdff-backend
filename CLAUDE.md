@@ -24,7 +24,7 @@ npm run migration:run
 3. Nothing under `domain/` imports `@nestjs/*`, `typeorm`, `class-validator` or any SDK, and domain code never reads configuration.
 4. Business rules live in the domain, never in controllers or repositories.
 5. `src/shared/` imports from no slice. Cross-cutting code that needs a slice goes in `src/scripts/`.
-6. Deny by default: every non-public route has `@UseGuards(JwtAuthGuard, RolesGuard)` and `@Roles(...)`, preferably at class level.
+6. Deny by default: every non-public route has `@UseGuards(JwtAuthGuard, RolesGuard)` and `@Roles(...)`, preferably at class level. `RolesGuard` refuses a route with no `@Roles`.
 7. Every schema change is a migration (`synchronize` is false). Read the generated SQL before running it, and replace `DROP COLUMN` + `ADD COLUMN` with `ALTER COLUMN ... TYPE`.
 8. Never log secrets or personal data: no tokens, token hashes, cédulas or birthdates. Controllers return plain projections, never ORM entities.
 9. Never commit secrets. Add new variables to `.env.example` and to `src/shared/config/validate-env.ts`.

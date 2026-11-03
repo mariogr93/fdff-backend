@@ -233,6 +233,7 @@ There must be **exactly one** `DomainException` class: `@Catch(DomainException)`
    @Roles(UserRoles.ADMIN, UserRoles.JUDGE)
    export class AthletesController { ... }
    ```
+   `RolesGuard` fails closed: a route it guards without `@Roles` answers `403 ForbiddenRoleException` for every role. To open a route to every signed-in role, list them all: `@Roles(...Object.values(UserRoles))`.
 3. **Import `IamModule`** in your feature module. `JwtAuthGuard` resolves the `'jwt'` strategy registered there; without the import, DI fails.
 4. **Read the actor from `request.user`** — `JwtStrategy.validate()` reloads the account from the database, checks it is active, and attaches an `AuthenticatedUser` (`{ id, email, role }`), not the raw JWT payload and never the domain `Account`, so no hash can reach a response by accident.
 5. **Validate input with a DTO.** The global pipe runs `whitelist`, `forbidNonWhitelisted`, `transform`. Query params need `@Type(() => Number)` to coerce.

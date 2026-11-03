@@ -27,8 +27,8 @@ export class RolesGuard implements CanActivate {
       .switchToHttp()
       .getRequest<{ user?: AuthenticatedUser }>();
 
-    // Checked before the role, and before the "no roles required" shortcut, so
-    // every guarded route is covered unless it opts out explicitly.
+    // Checked before the role, so every guarded route is covered unless it
+    // opts out explicitly.
     if (user?.mustChangePassword) {
       const allowed = this.reflector.getAllAndOverride<boolean | undefined>(
         ALLOW_WHILE_PASSWORD_CHANGE_PENDING_KEY,
@@ -41,9 +41,9 @@ export class RolesGuard implements CanActivate {
       context.getHandler(),
       context.getClass(),
     ]);
-    if (!required?.length) return true;
-    if (!user || !required.includes(user.role)) {
-      throw new ForbiddenRoleException(); // or ForbiddenException
+    // Deny by default: a route without @Roles is refused, not opened to every role.
+    if (!required?.length || !user || !required.includes(user.role)) {
+      throw new ForbiddenRoleException();
     }
     return true;
   }
